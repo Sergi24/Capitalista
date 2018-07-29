@@ -40,6 +40,11 @@ public class Game : NetworkBehaviour
     public Text playerDownName, playerRightName, playerUpName, playerLeftName;
     private Text[] passedTextPlayers;
 
+    public GameObject spaceToBegin;
+
+    [SyncVar]
+    private bool available;
+
     [SyncVar]
     private bool startedGame;
 
@@ -54,6 +59,12 @@ public class Game : NetworkBehaviour
         nameOfPlayers = new String[4];
         playersHaveFinished = new bool[4];
         startedGame = false;
+        available = true;
+
+        if (isServer)
+        {
+            spaceToBegin.SetActive(true);
+        }
 
         for (int i = 0; i <4; i++)
         {
@@ -71,6 +82,7 @@ public class Game : NetworkBehaviour
                 Debug.Log("RETURN PRESSED");
                 BeginGame();
                 startedGame = true;
+                spaceToBegin.SetActive(false);
             }
         }
 	}
@@ -180,6 +192,7 @@ public class Game : NetworkBehaviour
 
         positionCards();
 
+        this.numPlayers = numPlayers;
         othersCards = new GameObject[numPlayers, numCardsForPlayer];
         indexOthersCards = new int[numPlayers];
 
@@ -188,7 +201,7 @@ public class Game : NetworkBehaviour
             indexOthersCards[i] = 0;
         }
 
-        positionOthersCards(numPlayers);
+        positionOthersCards();
     }
 
     private void positionCards()
@@ -204,7 +217,7 @@ public class Game : NetworkBehaviour
         }
     }
 
-    private void positionOthersCards(int numPlayers)
+    private void positionOthersCards()
     {
         passedTextPlayers[numPlayer] = passedTextDown;
         playerDownName.GetComponent<Text>().text = nameOfPlayers[numPlayer];
@@ -253,7 +266,7 @@ public class Game : NetworkBehaviour
                 othersCards[(numPlayer + 2) % numPlayers, i].transform.position = new Vector3((i * 0.45f) - ((numCardsForPlayer / 2) * 0.45f), 4, 50 - i);
                
                 othersCards[(numPlayer + 3) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
-                othersCards[(numPlayer + 3) % numPlayers, i].transform.position = new Vector3(-4f, (i * 0.45f) - ((numCardsForPlayer / 2) * 0.45f), 50 - i);
+                othersCards[(numPlayer + 3) % numPlayers, i].transform.position = new Vector3(-5.5f, (i * 0.45f) - ((numCardsForPlayer / 2) * 0.45f), 50 - i);
                 othersCards[(numPlayer + 3) % numPlayers, i].transform.Rotate(new Vector3(0, 0, -90));
             }
         }
@@ -293,13 +306,21 @@ public class Game : NetworkBehaviour
     public bool IsMyTurn()
     {
         //Debug.Log(numPlayer + " " +playerTurn);
-        if (numPlayer == playerTurn) return true;
+        if (numPlayer == playerTurn && available) return true;
         else return false;
     }
 
     public void throwCard(GameObject[] cards, int cardsNumber, int numPlayerCards, int numPlayer)
     {
         //RpcSynchronizeTable(cards, number);
+
+        if (int.Parse(cards[0].tag) == 14)
+        {
+            for (int i = 0; i < indexLastCards; i++)
+            {
+                lastCards[i].transform.Rotate(new Vector3(180, 0, 0));
+            }
+        }
 
         indexLastCards = 0;
         for (int i=0; i < cardsNumber; i++)
@@ -308,6 +329,7 @@ public class Game : NetworkBehaviour
             cards[i].transform.Rotate(0, 0, i*20);
             distanceLastCard -= 0.5f;
             RpcSetCardVisible(cards[i]);
+            
             lastCards[indexLastCards] = cards[i];
             indexLastCards++;
         }
@@ -332,7 +354,9 @@ public class Game : NetworkBehaviour
         }
 
         RpcEliminateOtherCards(cardsNumber, playerTurn);
-        
+
+        available = false;
+
         changeTurn(numberPlayersPassed);
     }
 
@@ -354,9 +378,9 @@ public class Game : NetworkBehaviour
     }
 
     [ClientRpc]
-    public void RpcPlayerHasFinished(int numPlayer, int position, bool[] playersHaveFinished)
+    public void RpcPlayerHasFinished(int playerHasFinished, int position, bool[] playersHaveFinished)
     {
-        if (this.numPlayer == numPlayer)
+        if (numPlayer == playerHasFinished)
         {
             textNumYouEnded.GetComponent<Text>().text = "#" + position;
             textYouEnded.gameObject.SetActive(true);
@@ -375,6 +399,11 @@ public class Game : NetworkBehaviour
             {
                 textNumYouEnded.GetComponent<Text>().text = "#" + numPlayers;
                 textYouEnded.gameObject.SetActive(true);
+
+                for (int i = 0; i < numPlayerCards; i++)
+                {
+                    playerCards[i].SetActive(false);
+                }
             }
         }
     }
@@ -410,6 +439,7 @@ public class Game : NetworkBehaviour
         }
         if (playerTurn == lastPlayerGame) playerDisponible = false;
         Debug.Log("PLAYER DISPONIBLE: " + playerDisponible);
+        available = false;
         if (!playerDisponible)
         {
             if (!playersHaveFinished[playerTurn])
@@ -444,6 +474,7 @@ public class Game : NetworkBehaviour
     {
         yield return new WaitForSeconds(time);
         RpcChangePlayerTurnName(Player_control.getplayersName()[playerTurn]);
+        available = true;
     }
 
     private IEnumerator ResetTable()
@@ -452,15 +483,12 @@ public class Game : NetworkBehaviour
         int i;
         for (i = 0; i < indexLastCards; i++)
         {
-            if (int.Parse(lastCards[i].gameObject.tag) == 14)
+            if (int.Parse(lastCards[i].gameObject.tag) != 14)
             {
-                GameObject reversCardInst = Instantiate(reversCard, new Vector3(0.4f/2f, 0, distanceLastCard), reversCard.transform.rotation);
+                /*GameObject reversCardInst = Instantiate(reversCard, new Vector3(-0.4f/2f, 0, distanceLastCard), reversCard.transform.rotation);
                 reversCardInst.transform.Rotate(0, 0, 180);
                 distanceLastCard -= 0.5f;
-                NetworkServer.Spawn(reversCardInst);
-            }
-            else
-            {
+                NetworkServer.Spawn(reversCardInst);*/
                 lastCards[i].transform.Rotate(new Vector3(180, 0, 0));
             }
         }
