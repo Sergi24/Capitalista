@@ -312,7 +312,7 @@ public class Game : NetworkBehaviour
             indexLastCards++;
         }
         int numberPlayersPassed = 0;
-        if(int.Parse(cards[0].tag) == lastGame[0])
+        if(int.Parse(cards[0].tag) == lastGame[0] || ((lastGame[0] == 10 || lastGame[0] == 11) && (int.Parse(cards[0].tag) == 10 || int.Parse(cards[0].tag) == 11)))
         {
             numberPlayersPassed = cardsNumber;
         } else if (int.Parse(cards[0].tag) == 14)
@@ -402,6 +402,7 @@ public class Game : NetworkBehaviour
             if (playerTurn == numPlayers) playerTurn = 0;
 
             if (playerTurn == lastPlayerGame) playerDisponible = true;
+
             if (numberPlayersPassed > 0) numberPlayersPassed--;
             else if (!playersHavePassedTurn[playerTurn] && !playersHaveFinished[playerTurn]) playerDisponible = true;
 
@@ -411,13 +412,38 @@ public class Game : NetworkBehaviour
         Debug.Log("PLAYER DISPONIBLE: " + playerDisponible);
         if (!playerDisponible)
         {
-            StartCoroutine("ResetTable");
-
-            playerTurn = lastPlayerGame;
+            if (!playersHaveFinished[playerTurn])
+            {
+                playerTurn = lastPlayerGame;
+            }else if (!playersHaveFinished[(playerTurn + 1) % numPlayers])
+            {
+                playerTurn = (playerTurn + 1) % numPlayers;
+            }
+            else
+            {
+                playerTurn = (playerTurn + 2) % numPlayers;
+            }
+            
+            IEnumerator resetTable = ResetTable();
+            StartCoroutine(resetTable);
             
             lastGame.Insert(0, -1);
             lastGame.Insert(1, -1);
+
+            IEnumerator changePlayerTurnName = ChangePlayerTurnName(2f);
+            StartCoroutine(changePlayerTurnName);
         }
+        else
+        {
+            IEnumerator changePlayerTurnName = ChangePlayerTurnName(0.3f);
+            StartCoroutine(changePlayerTurnName);
+        }
+    }
+
+    private IEnumerator ChangePlayerTurnName(float time)
+    {
+        yield return new WaitForSeconds(time);
+        RpcChangePlayerTurnName(Player_control.getplayersName()[playerTurn]);
     }
 
     private IEnumerator ResetTable()
@@ -426,7 +452,17 @@ public class Game : NetworkBehaviour
         int i;
         for (i = 0; i < indexLastCards; i++)
         {
-            lastCards[i].transform.Rotate(new Vector3(180, 0, 0));
+            if (int.Parse(lastCards[i].gameObject.tag) == 14)
+            {
+                GameObject reversCardInst = Instantiate(reversCard, new Vector3(0.4f/2f, 0, distanceLastCard), reversCard.transform.rotation);
+                reversCardInst.transform.Rotate(0, 0, 180);
+                distanceLastCard -= 0.5f;
+                NetworkServer.Spawn(reversCardInst);
+            }
+            else
+            {
+                lastCards[i].transform.Rotate(new Vector3(180, 0, 0));
+            }
         }
 
         for (i = 0; i < numPlayers; i++)
@@ -435,7 +471,6 @@ public class Game : NetworkBehaviour
         }
         indexLastCards = 0;
         RpcDisablePassedText();
-        RpcChangePlayerTurnName(Player_control.getplayersName()[playerTurn]);
     }
 
     [ClientRpc]
