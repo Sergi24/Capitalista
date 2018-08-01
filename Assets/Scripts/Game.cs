@@ -37,10 +37,12 @@ public class Game : NetworkBehaviour
     private int position;
 
     public Text textPlayerTurnName, textNumYouEnded, textYouEnded, passedTextUp, passedTextDown, passedTextRight, passedTextLeft;
-    public Text playerDownName, playerRightName, playerUpName, playerLeftName;
-    private Text[] passedTextPlayers;
+    public Text playerDownName, playerRightName, playerUpName, playerLeftName, textNumPlayers;
+    private Text[] passedTextPlayers, textPlayersName;
 
     public GameObject spaceToBegin;
+
+    public Color red, orange;
 
     [SyncVar]
     private bool available;
@@ -56,6 +58,7 @@ public class Game : NetworkBehaviour
         indexLastCards = 0;
         playersHavePassedTurn = new bool[4];
         passedTextPlayers = new Text[4];
+        textPlayersName = new Text[4];
         nameOfPlayers = new String[4];
         playersHaveFinished = new bool[4];
         startedGame = false;
@@ -83,9 +86,20 @@ public class Game : NetworkBehaviour
                 BeginGame();
                 startedGame = true;
                 spaceToBegin.SetActive(false);
+                RpcDisableTextNumPlayers();
             }
         }
-	}
+        if (!startedGame)
+        {
+            textNumPlayers.GetComponent<Text>().text = "Number of players in the room: " + GameObject.FindGameObjectsWithTag("Player").Length;
+        }
+    }
+
+    [ClientRpc]
+    private void RpcDisableTextNumPlayers()
+    {
+        textNumPlayers.gameObject.SetActive(false);
+    }
 
     private void BeginGame()
     {
@@ -113,7 +127,7 @@ public class Game : NetworkBehaviour
 
         numCardsForPlayer = 54 / numPlayers;
         playerTurn = UnityEngine.Random.Range(0, numPlayers);
-        RpcChangePlayerTurnName(Player_control.getplayersName()[playerTurn]);
+        
         lastGame.Add(-1);
         lastGame.Add(-1);
 
@@ -122,7 +136,10 @@ public class Game : NetworkBehaviour
         RpcSendNameOfPlayers(Player_control.getplayersName());
 
         RpcDealCards(numCardsForPlayer, numPlayers);
-        
+
+        RpcChangePlayerTurnName(Player_control.getplayersName()[playerTurn]);
+        RpcChangeColorPlayerTurn(playerTurn);
+
     }
 
     [ClientRpc]
@@ -220,11 +237,13 @@ public class Game : NetworkBehaviour
     private void positionOthersCards()
     {
         passedTextPlayers[numPlayer] = passedTextDown;
-        playerDownName.GetComponent<Text>().text = nameOfPlayers[numPlayer];
+        playerDownName.text = nameOfPlayers[numPlayer];
+        textPlayersName[numPlayer] = playerDownName;
         if (numPlayers == 2)
         {
             passedTextPlayers[(numPlayer + 1) % numPlayers] = passedTextUp;
             playerUpName.text = nameOfPlayers[(numPlayer + 1) % numPlayers];
+            textPlayersName[(numPlayer + 1) % numPlayers] = playerUpName;
             for (int i = 0; i < numCardsForPlayer; i++)
             {
                 othersCards[(numPlayer + 1) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
@@ -233,9 +252,11 @@ public class Game : NetworkBehaviour
         } else if (numPlayers == 3)
         {
             passedTextPlayers[(numPlayer + 1) % numPlayers] = passedTextRight;
-            playerRightName.GetComponent<Text>().text = nameOfPlayers[(numPlayer + 1) % numPlayers];
+            playerRightName.text = nameOfPlayers[(numPlayer + 1) % numPlayers];
+            textPlayersName[(numPlayer + 1) % numPlayers] = playerRightName;
             passedTextPlayers[(numPlayer + 2) % numPlayers] = passedTextUp;
-            playerUpName.GetComponent<Text>().text = nameOfPlayers[(numPlayer + 2) % numPlayers];
+            playerUpName.text = nameOfPlayers[(numPlayer + 2) % numPlayers];
+            textPlayersName[(numPlayer + 2) % numPlayers] = playerUpName;
             for (int i = 0; i < numCardsForPlayer; i++)
             {
                 othersCards[(numPlayer + 1) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
@@ -250,11 +271,14 @@ public class Game : NetworkBehaviour
         else
         {
             passedTextPlayers[(numPlayer + 1) % numPlayers] = passedTextRight;
-            playerRightName.GetComponent<Text>().text = nameOfPlayers[(numPlayer + 1) % numPlayers];
+            playerRightName.text = nameOfPlayers[(numPlayer + 1) % numPlayers];
+            textPlayersName[(numPlayer + 1) % numPlayers] = playerRightName;
             passedTextPlayers[(numPlayer + 2) % numPlayers] = passedTextUp;
-            playerUpName.GetComponent<Text>().text = nameOfPlayers[(numPlayer + 2) % numPlayers];
+            playerUpName.text = nameOfPlayers[(numPlayer + 2) % numPlayers];
+            textPlayersName[(numPlayer + 2) % numPlayers] = playerUpName;
             passedTextPlayers[(numPlayer + 3) % numPlayers] = passedTextLeft;
-            playerLeftName.GetComponent<Text>().text = nameOfPlayers[(numPlayer + 3) % numPlayers];
+            playerLeftName.text = nameOfPlayers[(numPlayer + 3) % numPlayers];
+            textPlayersName[(numPlayer + 3) % numPlayers] = playerLeftName;
 
             for (int i = 0; i < numCardsForPlayer; i++)
             {
@@ -339,7 +363,7 @@ public class Game : NetworkBehaviour
             numberPlayersPassed = cardsNumber;
         } else if (int.Parse(cards[0].tag) == 14)
         {
-            numberPlayersPassed = 4;
+            numberPlayersPassed = 3;
         }
         lastGame.Insert(0, int.Parse(cards[0].tag));
         lastGame.Insert(1, cardsNumber);
@@ -432,9 +456,15 @@ public class Game : NetworkBehaviour
 
             if (playerTurn == lastPlayerGame) playerDisponible = true;
 
-            if (numberPlayersPassed > 0) numberPlayersPassed--;
-            else if (!playersHavePassedTurn[playerTurn] && !playersHaveFinished[playerTurn]) playerDisponible = true;
-
+            if (!playersHavePassedTurn[playerTurn] && !playersHaveFinished[playerTurn])
+            {
+                if (numberPlayersPassed > 0)
+                {
+                    numberPlayersPassed--;
+                    if (i < (numPlayers - 1)) RpcSkipPlayer(playerTurn);
+                }
+                else playerDisponible = true;
+            }
             i++;
         }
         if (playerTurn == lastPlayerGame) playerDisponible = false;
@@ -470,10 +500,30 @@ public class Game : NetworkBehaviour
         }
     }
 
-    private IEnumerator ChangePlayerTurnName(float time)
+    [ClientRpc]
+    private void RpcSkipPlayer(int numPlayer)
+    {
+        passedTextPlayers[numPlayer].text ="SKIPPED";
+        passedTextPlayers[numPlayer].color = orange;
+        passedTextPlayers[numPlayer].gameObject.SetActive(true);
+
+        IEnumerator disableSkippedPlayer = DisableSkippedPlayer(2f, numPlayer);
+        StartCoroutine(disableSkippedPlayer);
+    }
+
+    private IEnumerator DisableSkippedPlayer(float time, int numPlayer)
+    {
+        yield return new WaitForSeconds(time);
+        passedTextPlayers[numPlayer].text = "PASSED";
+        passedTextPlayers[numPlayer].color = red;
+        passedTextPlayers[numPlayer].gameObject.SetActive(false);
+    }
+
+        private IEnumerator ChangePlayerTurnName(float time)
     {
         yield return new WaitForSeconds(time);
         RpcChangePlayerTurnName(Player_control.getplayersName()[playerTurn]);
+        RpcChangeColorPlayerTurn(playerTurn);
         available = true;
     }
 
@@ -519,6 +569,20 @@ public class Game : NetworkBehaviour
         textPlayerTurnName.GetComponent<Text>().text = playerTurnName;
     }
 
+    [ClientRpc]
+    private void RpcChangeColorPlayerTurn(int playerTurn)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            Debug.Log(textPlayersName[i]+"  "+playerTurn);
+            if (textPlayersName[i] != null)
+            {
+                if (i == playerTurn) textPlayersName[i].color = Color.green;
+                else textPlayersName[i].color = Color.black;
+            }
+        }
+    }
+
     public void ButtonPassTurn()
     {
         Debug.Log("Button pass turn");
@@ -541,7 +605,7 @@ public class Game : NetworkBehaviour
     [ClientRpc]
     private void RpcPlayerHasPassed(int numPlayer)
     {
-        Debug.Log("AQUIII" + numPlayer);
+        //Debug.Log("AQUIII" + numPlayer);
         passedTextPlayers[numPlayer].gameObject.SetActive(true);
     }
 
