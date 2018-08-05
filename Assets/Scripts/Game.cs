@@ -87,6 +87,35 @@ public class Game : NetworkBehaviour
         }
     }
 
+    public void Initialize()
+    {
+        distanceLastCard = 50;
+        indexCards = 0;
+        indexLastCards = 0;
+        playersHavePassedTurn = new bool[4];
+        passedTextPlayers = new Text[4];
+        textPlayersName = new Text[4];
+        nameOfPlayers = new String[4];
+        playersHaveFinished = new bool[4];
+        available = true;
+
+        cardsSpawned = new GameObject[54];
+
+        lastCards = new GameObject[8];
+
+        textYouEnded.gameObject.SetActive(false);
+        buttonNextGame.SetActive(false);
+        textSended.gameObject.SetActive(false);
+        puntuations.SetActive(false);
+
+        for (int i = 0; i < 4; i++)
+        {
+            playersHavePassedTurn[i] = false;
+            playersHaveFinished[i] = false;
+            Player_control.playersPreparedForNextGame[i] = false;
+        }
+    }
+
     [ClientRpc]
     private void RpcInitialize()
     {
@@ -128,6 +157,7 @@ public class Game : NetworkBehaviour
         int index;
         GameObject aux;
 
+        Initialize();
         RpcInitialize();
 
         for (int i = 0; i < 54; i++)
