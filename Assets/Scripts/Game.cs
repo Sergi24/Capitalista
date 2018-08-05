@@ -15,7 +15,7 @@ public class Game : NetworkBehaviour
 
     public GameObject reversCard;
 
-    private GameObject[] cardsSpawned = new GameObject[54];
+    private GameObject[] cardsSpawned;
     private int numPlayer;
 
     [SyncVar]
@@ -25,7 +25,7 @@ public class Game : NetworkBehaviour
     private int numPlayerCards;
 
     private SyncListInt lastGame = new SyncListInt();
-    private GameObject[] lastCards = new GameObject[8];
+    private GameObject[] lastCards;
     private int indexLastCards;
     private int numPlayers;
 
@@ -36,13 +36,17 @@ public class Game : NetworkBehaviour
     private String[] nameOfPlayers;
     private int position;
 
-    public Text textPlayerTurnName, textNumYouEnded, textYouEnded, passedTextUp, passedTextDown, passedTextRight, passedTextLeft;
-    public Text playerDownName, playerRightName, playerUpName, playerLeftName, textNumPlayers;
+    public Text textNumYouEnded, textYouEnded, passedTextUp, passedTextDown, passedTextRight, passedTextLeft;
+    public Text playerDownName, playerRightName, playerUpName, playerLeftName, textNumPlayers, textSended;
+    public GameObject puntuations;
+    public Text[] textNamesPuntuationPlayers, puntuationPlayers;
     private Text[] passedTextPlayers, textPlayersName;
 
     public GameObject spaceToBegin;
 
     public Color red, orange;
+
+    public GameObject buttonNextGame;
 
     [SyncVar]
     private bool available;
@@ -51,28 +55,15 @@ public class Game : NetworkBehaviour
     private bool startedGame;
 
     // Use this for initialization
-    void Start () {
+    void Start() {
         numPlayer = GameObject.FindGameObjectsWithTag("Player").Length - 1;
-        distanceLastCard = 50;
-        indexCards = 0;
-        indexLastCards = 0;
-        playersHavePassedTurn = new bool[4];
-        passedTextPlayers = new Text[4];
-        textPlayersName = new Text[4];
-        nameOfPlayers = new String[4];
-        playersHaveFinished = new bool[4];
+        
         startedGame = false;
-        available = true;
+        numPlayers = 1;
 
         if (isServer)
         {
             spaceToBegin.SetActive(true);
-        }
-
-        for (int i = 0; i <4; i++)
-        {
-            playersHavePassedTurn[i] = false;
-            playersHaveFinished[i] = false;
         }
     }
 
@@ -91,7 +82,38 @@ public class Game : NetworkBehaviour
         }
         if (!startedGame)
         {
+            textNumPlayers.gameObject.SetActive(true);
             textNumPlayers.GetComponent<Text>().text = "Number of players in the room: " + GameObject.FindGameObjectsWithTag("Player").Length;
+        }
+    }
+
+    [ClientRpc]
+    private void RpcInitialize()
+    {
+        distanceLastCard = 50;
+        indexCards = 0;
+        indexLastCards = 0;
+        playersHavePassedTurn = new bool[4];
+        passedTextPlayers = new Text[4];
+        textPlayersName = new Text[4];
+        nameOfPlayers = new String[4];
+        playersHaveFinished = new bool[4];
+        available = true;
+
+        cardsSpawned = new GameObject[54];
+
+        lastCards = new GameObject[8];
+
+        textYouEnded.gameObject.SetActive(false);
+        buttonNextGame.SetActive(false);
+        textSended.gameObject.SetActive(false);
+        puntuations.SetActive(false);
+
+        for (int i = 0; i < 4; i++)
+        {
+            playersHavePassedTurn[i] = false;
+            playersHaveFinished[i] = false;
+            Player_control.playersPreparedForNextGame[i] = false;
         }
     }
 
@@ -105,6 +127,9 @@ public class Game : NetworkBehaviour
     {
         int index;
         GameObject aux;
+
+        RpcInitialize();
+
         for (int i = 0; i < 54; i++)
         {
             cardsSpawned[i] = Instantiate(cards[i], transform.position, cards[i].transform.rotation);
@@ -127,9 +152,9 @@ public class Game : NetworkBehaviour
 
         numCardsForPlayer = 54 / numPlayers;
         playerTurn = UnityEngine.Random.Range(0, numPlayers);
-        
-        lastGame.Add(-1);
-        lastGame.Add(-1);
+
+        lastGame.Insert(0, -1);
+        lastGame.Insert(1, -1);
 
         position = 1;
 
@@ -137,19 +162,18 @@ public class Game : NetworkBehaviour
 
         RpcDealCards(numCardsForPlayer, numPlayers);
 
-        RpcChangePlayerTurnName(Player_control.getplayersName()[playerTurn]);
-        RpcChangeColorPlayerTurn(playerTurn);
-
+        RpcChangeColorPlayerTurn(playerTurn, playersHaveFinished);
     }
 
     [ClientRpc]
     private void RpcSendNameOfPlayers(String[] nameOfPlayers)
     {
-        for (int i=0; i<4; i++)
+        for (int i = 0; i < 4; i++)
         {
             if (nameOfPlayers[i] != null)
             {
                 this.nameOfPlayers[i] = nameOfPlayers[i];
+                textNamesPuntuationPlayers[i].text = nameOfPlayers[i];
             }
         }
     }
@@ -171,7 +195,7 @@ public class Game : NetworkBehaviour
         numPlayerCards = numCardsForPlayer;
         //Debug.Log(numPlayer + " " + numCardsForPlayer);
         this.numCardsForPlayer = numCardsForPlayer;
-        for (int i=0; i<54; i++)
+        for (int i = 0; i < 54; i++)
         {
             //Debug.Log(numPlayer + ": " + cardsSpawned[i]);
             if (i >= (numPlayer * numCardsForPlayer) && i < (numPlayer * numCardsForPlayer) + numCardsForPlayer)
@@ -213,7 +237,7 @@ public class Game : NetworkBehaviour
         othersCards = new GameObject[numPlayers, numCardsForPlayer];
         indexOthersCards = new int[numPlayers];
 
-        for (int i=0; i<numPlayers; i++)
+        for (int i = 0; i < numPlayers; i++)
         {
             indexOthersCards[i] = 0;
         }
@@ -223,9 +247,9 @@ public class Game : NetworkBehaviour
 
     private void positionCards()
     {
-        for (int i=0; i < numCardsForPlayer; i++)
+        for (int i = 0; i < numCardsForPlayer; i++)
         {
-            playerCards[i].transform.position = new Vector3((i*0.45f)-((numCardsForPlayer/2)*0.45f), -4, 50-i);
+            playerCards[i].transform.position = new Vector3((i * 0.45f) - ((numCardsForPlayer / 2) * 0.45f), -4, 50 - i);
         }
 
         for (int i = 0; i < numCardsForPlayer; i++)
@@ -262,7 +286,7 @@ public class Game : NetworkBehaviour
                 othersCards[(numPlayer + 1) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
                 othersCards[(numPlayer + 1) % numPlayers, i].transform.position = new Vector3(5.5f, (i * 0.45f) - ((numCardsForPlayer / 2) * 0.45f), 50 - i);
                 othersCards[(numPlayer + 1) % numPlayers, i].transform.Rotate(new Vector3(0, 0, 90));
-                
+
 
                 othersCards[(numPlayer + 2) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
                 othersCards[(numPlayer + 2) % numPlayers, i].transform.position = new Vector3((i * 0.45f) - ((numCardsForPlayer / 2) * 0.45f), 4, 50 - i);
@@ -285,10 +309,10 @@ public class Game : NetworkBehaviour
                 othersCards[(numPlayer + 1) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
                 othersCards[(numPlayer + 1) % numPlayers, i].transform.position = new Vector3(5.5f, (i * 0.45f) - ((numCardsForPlayer / 2) * 0.45f), 50 - i);
                 othersCards[(numPlayer + 1) % numPlayers, i].transform.Rotate(new Vector3(0, 0, 90));
-                
+
                 othersCards[(numPlayer + 2) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
                 othersCards[(numPlayer + 2) % numPlayers, i].transform.position = new Vector3((i * 0.45f) - ((numCardsForPlayer / 2) * 0.45f), 4, 50 - i);
-               
+
                 othersCards[(numPlayer + 3) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
                 othersCards[(numPlayer + 3) % numPlayers, i].transform.position = new Vector3(-5.5f, (i * 0.45f) - ((numCardsForPlayer / 2) * 0.45f), 50 - i);
                 othersCards[(numPlayer + 3) % numPlayers, i].transform.Rotate(new Vector3(0, 0, -90));
@@ -334,9 +358,8 @@ public class Game : NetworkBehaviour
         else return false;
     }
 
-    public void throwCard(GameObject[] cards, int cardsNumber, int numPlayerCards, int numPlayer)
+    public void ThrowCard(GameObject[] cards, int cardsNumber, int numPlayerCards, int numPlayer)
     {
-        //RpcSynchronizeTable(cards, number);
 
         if (int.Parse(cards[0].tag) == 14)
         {
@@ -347,18 +370,18 @@ public class Game : NetworkBehaviour
         }
 
         indexLastCards = 0;
-        for (int i=0; i < cardsNumber; i++)
+        for (int i = 0; i < cardsNumber; i++)
         {
-            cards[i].transform.position = new Vector3((i*0.4f)-(cardsNumber / (2f/0.4f)), i*(-0.1f), distanceLastCard);
-            cards[i].transform.Rotate(0, 0, i*20);
+            cards[i].transform.position = new Vector3((i * 0.4f) - (cardsNumber / (2f / 0.4f)), i * (-0.1f), distanceLastCard);
+            cards[i].transform.Rotate(0, 0, i * 20);
             distanceLastCard -= 0.5f;
             RpcSetCardVisible(cards[i]);
-            
+
             lastCards[indexLastCards] = cards[i];
             indexLastCards++;
         }
         int numberPlayersPassed = 0;
-        if(int.Parse(cards[0].tag) == lastGame[0] || ((lastGame[0] == 10 || lastGame[0] == 11) && (int.Parse(cards[0].tag) == 10 || int.Parse(cards[0].tag) == 11)))
+        if (int.Parse(cards[0].tag) == lastGame[0] || ((lastGame[0] == 10 || lastGame[0] == 11) && (int.Parse(cards[0].tag) == 10 || int.Parse(cards[0].tag) == 11)))
         {
             numberPlayersPassed = cardsNumber;
         } else if (int.Parse(cards[0].tag) == 14)
@@ -374,7 +397,19 @@ public class Game : NetworkBehaviour
         {
             playersHaveFinished[numPlayer] = true;
             RpcPlayerHasFinished(numPlayer, position, playersHaveFinished);
+            Player_control.playersPuntuation[numPlayer] += numPlayers - position;
+
+            int count = 0;
+            for (int i = 0; i < numPlayers; i++)
+            {
+                if (!playersHaveFinished[i]) count++;
+            }
+            if (count < 2)
+            {
+                RpcShowPuntuation(Player_control.playersPuntuation);
+            }
             position++;
+
         }
 
         RpcEliminateOtherCards(cardsNumber, playerTurn);
@@ -385,19 +420,73 @@ public class Game : NetworkBehaviour
     }
 
     [ClientRpc]
+    public void RpcShowPuntuation(int[] playersPuntuation)
+    {
+        puntuations.SetActive(true);
+        for (int i = 0; i < numPlayers; i++)
+        {
+            textNamesPuntuationPlayers[i].gameObject.SetActive(true);
+            puntuationPlayers[i].gameObject.SetActive(true);
+            puntuationPlayers[i].text = "" + playersPuntuation[i];
+        }
+    }
+
+    [ClientRpc]
     public void RpcEliminateOtherCards(int cardsNumber, int playerTurn)
     {
-        for(int i=0; i<cardsNumber; i++)
+        for (int i = 0; i < cardsNumber; i++)
         {
             if (indexOthersCards[playerTurn] % 2 == 0)
             {
-                Destroy(othersCards[playerTurn, indexOthersCards[playerTurn]/2]);
+                Destroy(othersCards[playerTurn, indexOthersCards[playerTurn] / 2]);
             }
             else
             {
-                Destroy(othersCards[playerTurn, (numCardsForPlayer-1) - (indexOthersCards[playerTurn]/2)]);
+                Destroy(othersCards[playerTurn, (numCardsForPlayer - 1) - (indexOthersCards[playerTurn] / 2)]);
             }
             indexOthersCards[playerTurn]++;
+        }
+    }
+
+    private bool IsLastPlayer(bool[] playersHaveFinished)
+    {
+        bool lastPlayer = true;
+        for (int i = 0; i < numPlayers; i++)
+        {
+            if (i != numPlayer)
+            {
+                if (!playersHaveFinished[i]) lastPlayer = false;
+            }
+        }
+        return lastPlayer;
+    }
+
+    private bool IsOnlyOnePlayer(bool[] playersHaveFinished)
+    {
+        int count = 0;
+        for (int i = 0; i < numPlayers; i++)
+        {
+            if (!playersHaveFinished[i]) count++;
+        }
+        if (count < 2) return true;
+        else return false;
+    }
+
+    private void DestroyAllOthersCards()
+    {
+        Debug.Log(numPlayer + "DESTROY ALL OTHER CARDS");
+        int currentIndex;
+        for (int i = 0; i < numPlayers; i++)
+        {
+            if (indexOthersCards[i] % 2 == 0) currentIndex = indexOthersCards[i] / 2;
+            else currentIndex = indexOthersCards[i] / 2 + 1;
+
+            for (int j = indexOthersCards[i]; j < numCardsForPlayer; j++)
+            {
+                Debug.Log(othersCards[i, currentIndex] + " - " + currentIndex + " - " + j);
+                Destroy(othersCards[i, currentIndex]);
+                currentIndex++;
+            }
         }
     }
 
@@ -408,19 +497,20 @@ public class Game : NetworkBehaviour
         {
             textNumYouEnded.GetComponent<Text>().text = "#" + position;
             textYouEnded.gameObject.SetActive(true);
+
+            if (IsOnlyOnePlayer(playersHaveFinished))
+            {
+                Debug.Log("IS ONLY ONE PLAYER 1" + numPlayer);
+                DestroyAllOthersCards();
+            }
+
+            buttonNextGame.SetActive(true);
         }
         else
         {
-            bool lastPlayer = true;
-            for (int i=0; i<numPlayers; i++)
+            if (IsLastPlayer(playersHaveFinished))
             {
-                if (i != numPlayer)
-                {
-                    if (!playersHaveFinished[i]) lastPlayer = false;
-                }
-            }
-            if (lastPlayer)
-            {
+                Debug.Log("IS LAST PLAYER" + numPlayer);
                 textNumYouEnded.GetComponent<Text>().text = "#" + numPlayers;
                 textYouEnded.gameObject.SetActive(true);
 
@@ -428,6 +518,13 @@ public class Game : NetworkBehaviour
                 {
                     playerCards[i].SetActive(false);
                 }
+
+                buttonNextGame.SetActive(true);
+            }
+            else if (IsOnlyOnePlayer(playersHaveFinished))
+            {
+                Debug.Log("IS ONLY ONE PLAYER 2" + numPlayer);
+                DestroyAllOthersCards();
             }
         }
     }
@@ -490,12 +587,12 @@ public class Game : NetworkBehaviour
             lastGame.Insert(0, -1);
             lastGame.Insert(1, -1);
 
-            IEnumerator changePlayerTurnName = ChangePlayerTurnName(2f);
+            IEnumerator changePlayerTurnName = ChangeColorPlayerTurn(2f);
             StartCoroutine(changePlayerTurnName);
         }
         else
         {
-            IEnumerator changePlayerTurnName = ChangePlayerTurnName(0.3f);
+            IEnumerator changePlayerTurnName = ChangeColorPlayerTurn(0.3f);
             StartCoroutine(changePlayerTurnName);
         }
     }
@@ -519,11 +616,10 @@ public class Game : NetworkBehaviour
         passedTextPlayers[numPlayer].gameObject.SetActive(false);
     }
 
-        private IEnumerator ChangePlayerTurnName(float time)
+    private IEnumerator ChangeColorPlayerTurn(float time)
     {
         yield return new WaitForSeconds(time);
-        RpcChangePlayerTurnName(Player_control.getplayersName()[playerTurn]);
-        RpcChangeColorPlayerTurn(playerTurn);
+        RpcChangeColorPlayerTurn(playerTurn, playersHaveFinished);
         available = true;
     }
 
@@ -564,21 +660,14 @@ public class Game : NetworkBehaviour
     }
 
     [ClientRpc]
-    private void RpcChangePlayerTurnName(string playerTurnName)
-    {
-        textPlayerTurnName.GetComponent<Text>().text = playerTurnName;
-    }
-
-    [ClientRpc]
-    private void RpcChangeColorPlayerTurn(int playerTurn)
+    private void RpcChangeColorPlayerTurn(int playerTurn, bool[] playersHaveFinished)
     {
         for (int i = 0; i < 4; i++)
         {
-            Debug.Log(textPlayersName[i]+"  "+playerTurn);
             if (textPlayersName[i] != null)
             {
-                if (i == playerTurn) textPlayersName[i].color = Color.green;
-                else textPlayersName[i].color = Color.black;
+                if (i != playerTurn || IsOnlyOnePlayer(playersHaveFinished)) textPlayersName[i].color = Color.black;
+                else textPlayersName[i].color = Color.green;
             }
         }
     }
@@ -586,13 +675,23 @@ public class Game : NetworkBehaviour
     public void ButtonPassTurn()
     {
         Debug.Log("Button pass turn");
-        if (lastGame[0] != -1)
+        if (numPlayers > 1 && lastGame[0] != -1)
         {
             foreach (GameObject player in GameObject.FindGameObjectsWithTag("Player"))
             {
                 player.GetComponent<Player>().PassTurn(numPlayer, playerTurn);
             }
         }
+    }
+
+    public void ButtonNextGame()
+    {
+        Debug.Log("Button next game");
+        foreach (GameObject player in GameObject.FindGameObjectsWithTag("Player"))
+        {
+            player.GetComponent<Player>().PlayerPrepared(numPlayer);
+        }
+        textSended.gameObject.SetActive(true);
     }
 
     public void PlayerPass(int numPlayer)
@@ -677,5 +776,24 @@ public class Game : NetworkBehaviour
             }
         }
         Debug.Log("Length player cards: "+playerCards.Length+" "+ numPlayerCards);
+    }
+
+    public void AddPlayerPrepared(int numPlayer)
+    {
+        bool beginNextGame = true;
+        Player_control.playersPreparedForNextGame[numPlayer] = true;
+        for (int i = 0; i < numPlayers; i++)
+        {
+            Debug.Log(i+"-"+Player_control.playersPreparedForNextGame[i]);
+            if (!Player_control.playersPreparedForNextGame[i]) beginNextGame = false;
+        }
+        if (beginNextGame)
+        {
+            for (int i = 0; i < 54; i++)
+            {
+                Destroy(cardsSpawned[i]);
+            }
+            BeginGame();
+        }
     }
 }

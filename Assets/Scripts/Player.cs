@@ -24,7 +24,7 @@ public class Player : NetworkBehaviour
 	void Update () {
         if (isLocalPlayer && game.GetStartedGame())
         {
-            if (Input.GetKeyDown(KeyCode.Space) && (game.sameNumberOfCards(numberChoosed) || (numberChoosed == 1 && int.Parse(cardsChoosed[0].tag) == 14)) && game.IsMyTurn())
+            if (Input.GetKeyDown(KeyCode.Space) && (numberChoosed > 0) && (game.sameNumberOfCards(numberChoosed) || (numberChoosed == 1 && int.Parse(cardsChoosed[0].tag) == 14)) && game.IsMyTurn())
             {
                 CmdThrowCard(cardsChoosed, numberChoosed, game.GetNumPlayerCards()-numberChoosed, game.GetNumPlayer());
 
@@ -45,7 +45,7 @@ public class Player : NetworkBehaviour
     [Command]
     public void CmdThrowCard(GameObject[] cardsChoosed, int numberChoosed, int numPlayerCards, int numPlayer)
     {
-        game.throwCard(cardsChoosed, numberChoosed, numPlayerCards, numPlayer);
+        game.ThrowCard(cardsChoosed, numberChoosed, numPlayerCards, numPlayer);
     }
 
     public bool isPosibleToChoose(int cardNumber)
@@ -124,5 +124,19 @@ public class Player : NetworkBehaviour
     {
         Debug.Log("playersHavePassedTurn[" + numPlayer + "] = true");
         game.PlayerPass(numPlayer);
+    }
+
+    public void PlayerPrepared(int numPlayer)
+    {
+        if (isLocalPlayer)
+        {
+            CmdPlayerPrepared(numPlayer);
+        }
+    }
+
+    [Command]
+    public void CmdPlayerPrepared(int numPlayer)
+    {
+        game.AddPlayerPrepared(numPlayer);
     }
 }

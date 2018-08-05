@@ -16,7 +16,7 @@ public class MenuController : MonoBehaviour {
 
     // Update is called once per frame
     void Update () {
-		if (Input.GetKeyDown(KeyCode.Return))
+		if (Input.GetKeyDown(KeyCode.Return) && inputField.GetComponent<InputField>().text.Length>0)
         {
             Player_control.playerLocalName = inputField.GetComponent<InputField>().text;
             networkManager.GetComponent<NetworkManagerHUD>().enabled = true;
