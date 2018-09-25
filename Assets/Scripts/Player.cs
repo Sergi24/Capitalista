@@ -15,18 +15,23 @@ public class Player : NetworkBehaviour
         cardsChoosed = new GameObject[8];
         numberChoosed = 0;
         game = GameObject.Find("Game").GetComponent<Game>();
-        if (!isLocalPlayer) gameObject.GetComponentInChildren<AudioListener>().enabled = false;
+        if (!isLocalPlayer)
+        {
+            gameObject.GetComponentInChildren<AudioListener>().enabled = false;
+            gameObject.GetComponentInChildren<Camera>().enabled = false;
+        }
 
         if (isLocalPlayer) CmdAddPlayer(Player_control.playerLocalName, GameObject.FindGameObjectsWithTag("Player").Length-1);
+
     }
-	
-	// Update is called once per frame
-	void Update () {
+
+    public void PlaySelectedCards()
+    {
         if (isLocalPlayer && game.GetStartedGame())
         {
-            if (Input.GetKeyDown(KeyCode.Space) && (numberChoosed > 0) && (game.sameNumberOfCards(numberChoosed) || (numberChoosed == 1 && int.Parse(cardsChoosed[0].tag) == 14)) && game.IsMyTurn())
+            if ((numberChoosed > 0) && (game.sameNumberOfCards(numberChoosed) || (numberChoosed == 1 && int.Parse(cardsChoosed[0].tag) == 14)) && game.IsMyTurn())
             {
-                CmdThrowCard(cardsChoosed, numberChoosed, game.GetNumPlayerCards()-numberChoosed, game.GetNumPlayer());
+                CmdThrowCard(cardsChoosed, numberChoosed, game.GetNumPlayerCards() - numberChoosed, game.GetNumPlayer());
 
                 game.EliminatePlayerCards(cardsChoosed, numberChoosed);
 
@@ -70,7 +75,7 @@ public class Player : NetworkBehaviour
         if (isLocalPlayer)
         {
             cardsChoosed[numberChoosed] = card;
-            card.transform.position = new Vector3(card.transform.position.x, card.transform.position.y + 0.5f, card.transform.position.z);
+            card.transform.position = new Vector3(card.transform.position.x, card.transform.position.y + 0.3f, card.transform.position.z);
             card.GetComponent<Card>().SetSelected(true);
             numberChoosed++;
         }
@@ -92,7 +97,7 @@ public class Player : NetworkBehaviour
                     cardsChoosed[i] = cardsChoosed[i + 1];
                 }
             }
-            card.transform.position = new Vector3(card.transform.position.x, card.transform.position.y - 0.5f, card.transform.position.z);
+            card.transform.position = new Vector3(card.transform.position.x, card.transform.position.y - 0.3f, card.transform.position.z);
             card.GetComponent<Card>().SetSelected(false);
             numberChoosed--;
         }

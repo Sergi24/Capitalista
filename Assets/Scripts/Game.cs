@@ -37,16 +37,22 @@ public class Game : NetworkBehaviour
     private int position;
 
     public Text textNumYouEnded, textYouEnded, passedTextUp, passedTextDown, passedTextRight, passedTextLeft;
-    public Text playerDownName, playerRightName, playerUpName, playerLeftName, textNumPlayers, textSended;
+    public Text playerDownName, playerRightName, playerUpName, playerLeftName, textNumPlayers, textSended, textTimeNumber;
     public GameObject puntuations;
     public Text[] textNamesPuntuationPlayers, puntuationPlayers;
     private Text[] passedTextPlayers, textPlayersName;
 
-    public GameObject spaceToBegin;
+    public GameObject buttonToBegin;
+    public GameObject textForWaiting;
 
-    public Color red, orange;
+    public Color red, orange, green;
 
     public GameObject buttonNextGame;
+
+    public AudioClip cardSound, passSound;
+
+    private int throwNumber;
+    public int remainingTime;
 
     [SyncVar]
     private bool available;
@@ -54,36 +60,50 @@ public class Game : NetworkBehaviour
     [SyncVar]
     private bool startedGame;
 
+    private int timeNumber;
+
+    private AudioSource asource;
+
     // Use this for initialization
     void Start() {
         numPlayer = GameObject.FindGameObjectsWithTag("Player").Length - 1;
-        
+
+        asource = gameObject.GetComponent<AudioSource>();
         startedGame = false;
         numPlayers = 1;
 
         if (isServer)
         {
-            spaceToBegin.SetActive(true);
+            buttonToBegin.SetActive(true);
+        }
+        else
+        {
+            textForWaiting.SetActive(true);
         }
     }
 
     // Update is called once per frame
     void Update()
     {
-        if (isServer) {
-            if (Input.GetKeyDown(KeyCode.Space) && GameObject.FindGameObjectsWithTag("Player").Length > 1 && !startedGame)
-            {
-                Debug.Log("RETURN PRESSED");
-                BeginGame();
-                startedGame = true;
-                spaceToBegin.SetActive(false);
-                RpcDisableTextNumPlayers();
-            }
-        }
         if (!startedGame)
         {
             textNumPlayers.gameObject.SetActive(true);
-            textNumPlayers.GetComponent<Text>().text = "Number of players in the room: " + GameObject.FindGameObjectsWithTag("Player").Length;
+            textNumPlayers.GetComponent<Text>().text = ""+GameObject.FindGameObjectsWithTag("Player").Length;
+        }
+    }
+
+    public void ButtonToBeginPressed()
+    {
+        if (isServer)
+        {
+            if (GameObject.FindGameObjectsWithTag("Player").Length > 1 && !startedGame)
+            {
+                Debug.Log("BUTTON TO BEGIN PRESSED");
+                BeginGame();
+                startedGame = true;
+                buttonToBegin.SetActive(false);
+                RpcDisableTextNumPlayersAndWaitinText();
+            }
         }
     }
 
@@ -114,6 +134,8 @@ public class Game : NetworkBehaviour
             playersHaveFinished[i] = false;
             Player_control.playersPreparedForNextGame[i] = false;
         }
+
+        throwNumber = 0;
     }
 
     [ClientRpc]
@@ -147,9 +169,10 @@ public class Game : NetworkBehaviour
     }
 
     [ClientRpc]
-    private void RpcDisableTextNumPlayers()
+    private void RpcDisableTextNumPlayersAndWaitinText()
     {
         textNumPlayers.gameObject.SetActive(false);
+        textForWaiting.gameObject.SetActive(false);
     }
 
     private void BeginGame()
@@ -193,6 +216,10 @@ public class Game : NetworkBehaviour
         RpcDealCards(numCardsForPlayer, numPlayers);
 
         RpcChangeColorPlayerTurn(playerTurn, playersHaveFinished);
+
+        timeNumber = remainingTime;
+        RpcReduceTime(timeNumber);
+        StartCoroutine(ReduceTime(throwNumber));
     }
 
     [ClientRpc]
@@ -390,6 +417,7 @@ public class Game : NetworkBehaviour
 
     public void ThrowCard(GameObject[] cards, int cardsNumber, int numPlayerCards, int numPlayer)
     {
+        RpcCardSound();
 
         if (int.Parse(cards[0].tag) == 14)
         {
@@ -447,6 +475,28 @@ public class Game : NetworkBehaviour
         available = false;
 
         changeTurn(numberPlayersPassed);
+    }
+
+    [ClientRpc]
+    public void RpcCardSound()
+    {
+        asource.clip = cardSound;
+        asource.volume = 0.9f;
+        asource.Play();
+    }
+
+    [ClientRpc]
+    public void RpcPassedSound()
+    {
+        asource.clip = passSound;
+        asource.volume = 0.6f;
+        asource.Play();
+    }
+
+    [ClientRpc]
+    public void RpcAlertSound()
+    {
+        GameObject.Find("Alerta").GetComponent<AudioSource>().Play();
     }
 
     [ClientRpc]
@@ -594,6 +644,12 @@ public class Game : NetworkBehaviour
             }
             i++;
         }
+        if (lastGame[0] == -1 && timeNumber == 0)
+        {
+            lastPlayerGame = playerTurn;
+            playerDisponible = false;
+        }
+
         if (playerTurn == lastPlayerGame) playerDisponible = false;
         Debug.Log("PLAYER DISPONIBLE: " + playerDisponible);
         available = false;
@@ -625,6 +681,8 @@ public class Game : NetworkBehaviour
             IEnumerator changePlayerTurnName = ChangeColorPlayerTurn(0.3f);
             StartCoroutine(changePlayerTurnName);
         }
+
+        throwNumber += 1;
     }
 
     [ClientRpc]
@@ -636,6 +694,12 @@ public class Game : NetworkBehaviour
 
         IEnumerator disableSkippedPlayer = DisableSkippedPlayer(2f, numPlayer);
         StartCoroutine(disableSkippedPlayer);
+    }
+
+    [ClientRpc]
+    private void RpcVibrate(int numPlayer)
+    {
+       // if (this.numPlayer == numPlayer) Handheld.Vibrate();
     }
 
     private IEnumerator DisableSkippedPlayer(float time, int numPlayer)
@@ -651,6 +715,11 @@ public class Game : NetworkBehaviour
         yield return new WaitForSeconds(time);
         RpcChangeColorPlayerTurn(playerTurn, playersHaveFinished);
         available = true;
+        RpcVibrate(playerTurn);
+        timeNumber = remainingTime;
+        textTimeNumber.GetComponent<Text>().text = remainingTime.ToString();
+        RpcReduceTime(remainingTime);
+        StartCoroutine(ReduceTime(throwNumber));
     }
 
     private IEnumerator ResetTable()
@@ -728,6 +797,7 @@ public class Game : NetworkBehaviour
     {
         playersHavePassedTurn[numPlayer] = true;
         RpcPlayerHasPassed(numPlayer);
+        RpcPassedSound();
         changeTurn(0);
     }
 
@@ -824,6 +894,57 @@ public class Game : NetworkBehaviour
                 Destroy(cardsSpawned[i]);
             }
             BeginGame();
+        }
+    }
+
+    public void PlaySelectedCards()
+    {
+        foreach(GameObject player in GameObject.FindGameObjectsWithTag("Player"))
+        {
+            player.GetComponent<Player>().PlaySelectedCards();
+        }
+    }
+
+    IEnumerator ReduceTime(int throwNumber)
+    {
+        textTimeNumber.GetComponent<Text>().color = green;
+        for (;;)
+        {
+            yield return new WaitForSeconds(1);
+
+            if (throwNumber != this.throwNumber || !available) break;
+            if (timeNumber > 0)
+            {
+                timeNumber -= 1;
+                textTimeNumber.GetComponent<Text>().text = timeNumber.ToString();
+                RpcReduceTime(timeNumber);
+                if (timeNumber == 6 || timeNumber == 4 || timeNumber == 2 || timeNumber == 1)
+                {
+                    textTimeNumber.GetComponent<Text>().color = red;
+                    RpcAlertSound();
+                }
+            }
+            if (timeNumber == 0)
+            {
+                RpcRemainingTimeOut();
+                break;
+            }
+            if (timeNumber == 15) textTimeNumber.GetComponent<Text>().color = orange;
+        }
+    }
+
+    [ClientRpc]
+    private void RpcReduceTime(int timeNumber)
+    {
+        textTimeNumber.GetComponent<Text>().text = timeNumber.ToString();
+    }
+
+    [ClientRpc]
+    private void RpcRemainingTimeOut()
+    {
+        foreach (GameObject player in GameObject.FindGameObjectsWithTag("Player"))
+        {
+            player.GetComponent<Player>().PassTurn(numPlayer, playerTurn);
         }
     }
 }
