@@ -224,6 +224,8 @@ public class Game : NetworkBehaviour
         timeNumber = remainingTime;
         RpcReduceTime(timeNumber);
         StartCoroutine(ReduceTime(throwNumber));
+
+        RpcVibrate();
     }
 
     [ClientRpc]
@@ -696,9 +698,9 @@ public class Game : NetworkBehaviour
     }
 
     [ClientRpc]
-    private void RpcVibrate(int numPlayer)
+    private void RpcVibrate()
     {
-       if (this.numPlayer == numPlayer) Handheld.Vibrate();
+       Handheld.Vibrate();
     }
 
     private IEnumerator DisableSkippedPlayer(float time, int numPlayer)
@@ -714,7 +716,6 @@ public class Game : NetworkBehaviour
         yield return new WaitForSeconds(time);
         RpcChangeColorPlayerTurn(playerTurn, playersHaveFinished);
         available = true;
-        RpcVibrate(playerTurn);
 
         timeNumber = remainingTime;
         textTimeNumber.GetComponent<Text>().text = remainingTime.ToString();
