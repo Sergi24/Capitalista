@@ -13,9 +13,10 @@ public class MenuController : MonoBehaviour {
     public GameObject textMatchesName, textMatchesSize;
     public GameObject[] joins;
     public GameObject textNoRoomsCreated;
+    public GameObject buttonCreateRoom;
 
-    private NetworkID networkId;
     private NetworkManager networkManager;
+    private NetworkID[] networksIds = new NetworkID[4];
 
     private void Start()
     {
@@ -27,18 +28,29 @@ public class MenuController : MonoBehaviour {
         StartCoroutine(WriteMatchTable());
     }
 
+    private void Update()
+    {
+        bool activar = false;
+
+        if (inputField.GetComponent<InputField>().text.Length == 0) activar = false;
+        else activar = true;
+        
+        foreach(GameObject join in joins)
+        {
+            join.GetComponent<Button>().interactable = activar;
+        }
+        buttonCreateRoom.GetComponent<Button>().interactable = activar;
+    }
+
     public void NameIntroduced()
     {
-        if (inputField.GetComponent<InputField>().text.Length > 0)
-        {
-            Player_control.playerLocalName = inputField.GetComponent<InputField>().text;
-            //networkManager.GetComponent<NetworkManagerHUD>().enabled = true;
-            Debug.Log(Player_control.playerLocalName);
-        }
+         Player_control.playerLocalName = inputField.GetComponent<InputField>().text;
+         Debug.Log(Player_control.playerLocalName);
     }
 
     public void CreateMatch()
     {
+        NameIntroduced();
         networkManager.matchMaker.CreateMatch(Player_control.playerLocalName, 4, true, "", "", "", 0, 0, OnMatchCreate);
     }
 
@@ -51,14 +63,16 @@ public class MenuController : MonoBehaviour {
         }
     }
 
-    public void JoinMatch()
+    public void JoinMatch(int room)
     {
-        networkManager.matchMaker.JoinMatch(networkId, "", "", "", 0, 0, OnMatchJoined);
+        NameIntroduced();
+        networkManager.matchMaker.JoinMatch(networksIds[room], "", "", "", 0, 0, OnMatchJoined);
     }
 
     public void OnMatchJoined(bool success, string extendedInfo, MatchInfo matchInfo)
     {
         if (!success) Debug.Log("Ha anat malament el join");
+        else NetworkManager.singleton.StartClient(matchInfo);
     }
 
     IEnumerator WriteMatchTable()
@@ -84,16 +98,18 @@ public class MenuController : MonoBehaviour {
                 foreach (MatchInfoSnapshot match in matchList)
                 {
                     joins[count].SetActive(true);
+                    networksIds[count] = match.networkId;
                     count++;
 
                     names += match.name + "\n\n";
                     capacity += match.currentSize + "/" + match.maxSize + "\n\n";
+                    
                 }
             }
 
             for(int i=count; i<4; i++)
             {
-                joins[count].SetActive(false);
+                joins[i].SetActive(false);
             }
             if (count == 0) textNoRoomsCreated.SetActive(true);
             else textNoRoomsCreated.SetActive(false);
