@@ -19,7 +19,7 @@ public class Card : NetworkBehaviour
         {
             if (player.GetComponent<Player>().isPosibleToChoose(int.Parse(gameObject.tag))) isPosibleToChoose = true;
         }
-        if (!selected && isPosibleToChoose && GameObject.Find("Game").GetComponent<Game>().isCardPosible(int.Parse(tag)) && GameObject.Find("Game").GetComponent<Game>().IsMyTurn())
+        if (!selected && isPosibleToChoose && GameObject.Find("Game").GetComponent<Game>().IsCardPosible(int.Parse(tag)) && GameObject.Find("Game").GetComponent<Game>().IsMyTurn())
         {
 
             GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
@@ -43,8 +43,6 @@ public class Card : NetworkBehaviour
 
     void OnMouseDown()
     {
-        //Debug.Log(GameObject.Find("Game").GetComponent<Game>().isCardPosible(int.Parse(tag)));
-        //Debug.Log(GameObject.Find("Game").GetComponent<Game>().IsMyTurn());
         SelectIfSelectionIsPosible();
     }
 

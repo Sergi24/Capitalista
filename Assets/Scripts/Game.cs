@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.UI;
@@ -8,6 +7,7 @@ using UnityEngine.UI;
 public class Game : NetworkBehaviour
 {
     public GameObject[] cards;
+    public GameObject notPossibleCube;
     private int indexCards;
     private GameObject[] playerCards;
     private GameObject[,] othersCards;
@@ -37,9 +37,9 @@ public class Game : NetworkBehaviour
     private int position;
 
     public Text textNumYouEnded, textYouEnded, passedTextUp, passedTextDown, passedTextRight, passedTextLeft;
-    public Text playerDownName, playerRightName, playerUpName, playerLeftName, textNumPlayers, textNumPlayersNumber, textSended, textTimeNumber;
-    public GameObject puntuations;
-    public Text[] textNamesPuntuationPlayers, puntuationPlayers;
+    public Text playerDownName, playerRightName, playerUpName, playerLeftName, textNumPlayersNumber, textSended, textTimeNumber;
+    public GameObject puntuations, textNumPlayers;
+    public Text[] textNamesPuntuationPlayers, puntuationPlayers, textNamesPuntuationPlayersOptions, puntuationPlayersOptions;
     private Text[] passedTextPlayers, textPlayersName;
 
     public GameObject buttonToBegin;
@@ -51,13 +51,14 @@ public class Game : NetworkBehaviour
 
     public AudioClip cardSound, passSound;
 
+    public GameObject buttonOptions;
+
     private int throwNumber;
     public int remainingTime;
 
     [SyncVar]
     private bool available;
 
-    [SyncVar]
     private bool startedGame;
 
     private int timeNumber;
@@ -100,10 +101,9 @@ public class Game : NetworkBehaviour
         {
             if (GameObject.FindGameObjectsWithTag("Player").Length > 1 && !startedGame)
             {
-                Debug.Log("BUTTON TO BEGIN PRESSED");
+                //Debug.Log("BUTTON TO BEGIN PRESSED");
                 BeginGame();
                 startedGame = true;
-                buttonToBegin.SetActive(false);
                 RpcDisableTextNumPlayersAndWaitinText();
             }
         }
@@ -173,7 +173,9 @@ public class Game : NetworkBehaviour
     [ClientRpc]
     private void RpcDisableTextNumPlayersAndWaitinText()
     {
-        textNumPlayers.gameObject.SetActive(false);
+        startedGame = true;
+        buttonToBegin.SetActive(false);
+        textNumPlayers.SetActive(false);
         textForWaiting.gameObject.SetActive(false);
     }
 
@@ -215,9 +217,11 @@ public class Game : NetworkBehaviour
 
         RpcSendNameOfPlayers(Player_control.getplayersName());
 
+        if (!startedGame) RpcSetPuntuationTo0(Player_control.getplayersName());
+
         RpcDealCards(numCardsForPlayer, numPlayers);
 
-        RpcChangeColorPlayerTurn(playerTurn, playersHaveFinished);
+        RpcChangePlayerTurn(playerTurn, playersHaveFinished);
 
         RpcRefreshButtonsInteraction(playerTurn);
 
@@ -226,6 +230,8 @@ public class Game : NetworkBehaviour
         StartCoroutine(ReduceTime(throwNumber));
 
         RpcVibrate();
+
+        //GameObject.Find("NetworkManager").GetComponent<NetworkManager>().matchMaker;
     }
 
     [ClientRpc]
@@ -233,11 +239,18 @@ public class Game : NetworkBehaviour
     {
         for (int i = 0; i < 4; i++)
         {
-            if (nameOfPlayers[i] != null)
-            {
-                this.nameOfPlayers[i] = nameOfPlayers[i];
-                textNamesPuntuationPlayers[i].text = nameOfPlayers[i];
-            }
+            this.nameOfPlayers[i] = nameOfPlayers[i];
+            textNamesPuntuationPlayers[i].text = nameOfPlayers[i];
+            textNamesPuntuationPlayersOptions[i].text = nameOfPlayers[i];
+        }
+    }
+
+    [ClientRpc]
+    private void RpcSetPuntuationTo0(String[] nameOfPlayers)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            if (nameOfPlayers[i].Length != 0) puntuationPlayersOptions[i].text = 0.ToString();
         }
     }
 
@@ -378,7 +391,7 @@ public class Game : NetworkBehaviour
         }
     }
 
-    public bool isCardPosible(int cardNumber)
+    public bool IsCardPosible(int cardNumber)
     {
         if (lastGame[0] == -1) return true;
         else if (cardNumber == 14) return true;
@@ -451,7 +464,7 @@ public class Game : NetworkBehaviour
         lastGame.Insert(1, cardsNumber);
         lastPlayerGame = playerTurn;
 
-        Debug.Log(numPlayerCards);
+        //Debug.Log(numPlayerCards);
         if (numPlayerCards <= 0)
         {
             playersHaveFinished[numPlayer] = true;
@@ -509,6 +522,7 @@ public class Game : NetworkBehaviour
             textNamesPuntuationPlayers[i].gameObject.SetActive(true);
             puntuationPlayers[i].gameObject.SetActive(true);
             puntuationPlayers[i].text = "" + playersPuntuation[i];
+            puntuationPlayersOptions[i].text = "" + playersPuntuation[i];
         }
     }
 
@@ -555,7 +569,7 @@ public class Game : NetworkBehaviour
 
     private void DestroyAllOthersCards()
     {
-        Debug.Log(numPlayer + "DESTROY ALL OTHER CARDS");
+        //Debug.Log(numPlayer + "DESTROY ALL OTHER CARDS");
         int currentIndex;
         for (int i = 0; i < numPlayers; i++)
         {
@@ -564,7 +578,7 @@ public class Game : NetworkBehaviour
 
             for (int j = indexOthersCards[i]; j < numCardsForPlayer; j++)
             {
-                Debug.Log(othersCards[i, currentIndex] + " - " + currentIndex + " - " + j);
+                //Debug.Log(othersCards[i, currentIndex] + " - " + currentIndex + " - " + j);
                 Destroy(othersCards[i, currentIndex]);
                 currentIndex++;
             }
@@ -581,7 +595,7 @@ public class Game : NetworkBehaviour
 
             if (IsOnlyOnePlayer(playersHaveFinished))
             {
-                Debug.Log("IS ONLY ONE PLAYER 1" + numPlayer);
+                //Debug.Log("IS ONLY ONE PLAYER 1" + numPlayer);
                 DestroyAllOthersCards();
             }
 
@@ -591,7 +605,7 @@ public class Game : NetworkBehaviour
         {
             if (IsLastPlayer(playersHaveFinished))
             {
-                Debug.Log("IS LAST PLAYER" + numPlayer);
+                //Debug.Log("IS LAST PLAYER" + numPlayer);
                 textNumYouEnded.GetComponent<Text>().text = "#" + numPlayers;
                 textYouEnded.gameObject.SetActive(true);
 
@@ -604,7 +618,7 @@ public class Game : NetworkBehaviour
             }
             else if (IsOnlyOnePlayer(playersHaveFinished))
             {
-                Debug.Log("IS ONLY ONE PLAYER 2" + numPlayer);
+                //Debug.Log("IS ONLY ONE PLAYER 2" + numPlayer);
                 DestroyAllOthersCards();
             }
         }
@@ -652,7 +666,7 @@ public class Game : NetworkBehaviour
         }
 
         if (playerTurn == lastPlayerGame) playerDisponible = false;
-        Debug.Log("PLAYER DISPONIBLE: " + playerDisponible);
+        //Debug.Log("PLAYER DISPONIBLE: " + playerDisponible);
         available = false;
         if (!playerDisponible)
         {
@@ -674,16 +688,31 @@ public class Game : NetworkBehaviour
             lastGame.Insert(0, -1);
             lastGame.Insert(1, -1);
 
-            IEnumerator changePlayerTurnName = ChangeColorPlayerTurn(2f);
+            IEnumerator changePlayerTurnName = ChangePlayerTurn(2f);
             StartCoroutine(changePlayerTurnName);
         }
         else
         {
-            IEnumerator changePlayerTurnName = ChangeColorPlayerTurn(0.3f);
+            IEnumerator changePlayerTurnName = ChangePlayerTurn(0.3f);
             StartCoroutine(changePlayerTurnName);
         }
 
         throwNumber += 1;
+    }
+
+    [ClientRpc]
+    private void RpcNotPossibleCards(int playerTurn)
+    {
+        if (playerTurn == numPlayer)
+        {
+            foreach(GameObject card in playerCards)
+            {
+                if (!IsCardPosible(int.Parse(card.tag)))
+                {
+                    Instantiate(notPossibleCube, card.transform.position, card.transform.rotation);
+                }
+            }
+        }
     }
 
     [ClientRpc]
@@ -711,10 +740,11 @@ public class Game : NetworkBehaviour
         passedTextPlayers[numPlayer].gameObject.SetActive(false);
     }
 
-    private IEnumerator ChangeColorPlayerTurn(float time)
+    private IEnumerator ChangePlayerTurn(float time)
     {
         yield return new WaitForSeconds(time);
-        RpcChangeColorPlayerTurn(playerTurn, playersHaveFinished);
+        RpcChangePlayerTurn(playerTurn, playersHaveFinished);
+        RpcNotPossibleCards(playerTurn);
         available = true;
 
         timeNumber = remainingTime;
@@ -749,10 +779,6 @@ public class Game : NetworkBehaviour
         {
             if (int.Parse(lastCards[i].gameObject.tag) != 14)
             {
-                /*GameObject reversCardInst = Instantiate(reversCard, new Vector3(-0.4f/2f, 0, distanceLastCard), reversCard.transform.rotation);
-                reversCardInst.transform.Rotate(0, 0, 180);
-                distanceLastCard -= 0.5f;
-                NetworkServer.Spawn(reversCardInst);*/
                 lastCards[i].transform.Rotate(new Vector3(180, 0, 0));
             }
         }
@@ -778,7 +804,7 @@ public class Game : NetworkBehaviour
     }
 
     [ClientRpc]
-    private void RpcChangeColorPlayerTurn(int playerTurn, bool[] playersHaveFinished)
+    private void RpcChangePlayerTurn(int playerTurn, bool[] playersHaveFinished)
     {
         for (int i = 0; i < 4; i++)
         {
@@ -792,7 +818,7 @@ public class Game : NetworkBehaviour
 
     public void ButtonPassTurn()
     {
-        Debug.Log("Button pass turn");
+        //Debug.Log("Button pass turn");
         if (numPlayers > 1 && lastGame[0] != -1)
         {
             foreach (GameObject player in GameObject.FindGameObjectsWithTag("Player"))
@@ -804,7 +830,7 @@ public class Game : NetworkBehaviour
 
     public void ButtonNextGame()
     {
-        Debug.Log("Button next game");
+        //Debug.Log("Button next game");
         foreach (GameObject player in GameObject.FindGameObjectsWithTag("Player"))
         {
             player.GetComponent<Player>().PlayerPrepared(numPlayer);
@@ -871,14 +897,10 @@ public class Game : NetworkBehaviour
     {
         for (int indexCard = 0; indexCard < numberChoosed; indexCard++)
         {
-            for (int i = 0; i < numPlayerCards; i++)
-            {
-                Debug.Log(playerCards[i].name);
-            }
             bool found = false;
             for (int i = 0; i < numPlayerCards; i++)
             {
-                Debug.Log(i+" - "+ cardsChoosed[indexCard]+" - "+ playerCards[i]);
+                //Debug.Log(i+" - "+ cardsChoosed[indexCard]+" - "+ playerCards[i]);
                 if (!found && cardsChoosed[indexCard].Equals(playerCards[i]))
                 {
                     found = true;
@@ -891,10 +913,10 @@ public class Game : NetworkBehaviour
             numPlayerCards--;
             for (int i = 0; i < numPlayerCards; i++)
             {
-                Debug.Log(playerCards[i].name);
+                //Debug.Log(playerCards[i].name);
             }
         }
-        Debug.Log("Length player cards: "+playerCards.Length+" "+ numPlayerCards);
+        //Debug.Log("Length player cards: "+playerCards.Length+" "+ numPlayerCards);
     }
 
     public void AddPlayerPrepared(int numPlayer)
@@ -903,14 +925,15 @@ public class Game : NetworkBehaviour
         Player_control.playersPreparedForNextGame[numPlayer] = true;
         for (int i = 0; i < numPlayers; i++)
         {
-            Debug.Log(i+"-"+Player_control.playersPreparedForNextGame[i]);
+            //Debug.Log(i+"-"+Player_control.playersPreparedForNextGame[i]);
             if (!Player_control.playersPreparedForNextGame[i]) beginNextGame = false;
         }
         if (beginNextGame)
         {
             for (int i = 0; i < 54; i++)
             {
-                Destroy(cardsSpawned[i]);
+                NetworkServer.Destroy(cardsSpawned[i]);
+                //Destroy(cardsSpawned[i]);
             }
             BeginGame();
         }
@@ -962,5 +985,16 @@ public class Game : NetworkBehaviour
         {
             player.GetComponent<Player>().PassTurn(numPlayer, playerTurn);
         }
+    }
+
+    public void ShowOptions()
+    {
+        if (buttonOptions.activeSelf) buttonOptions.SetActive(false);
+        else buttonOptions.SetActive(true);
+    }
+
+    public void ExitGame()
+    {
+        GameObject.Find("NetworkManager").GetComponent<NetworkManager>().StopHost();
     }
 }

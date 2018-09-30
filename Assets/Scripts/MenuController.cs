@@ -5,22 +5,23 @@ using UnityEngine.UI;
 using UnityEngine.Networking;
 using UnityEngine.Networking.Match;
 using UnityEngine.Networking.Types;
+using UnityEngine.SceneManagement;
 
 public class MenuController : MonoBehaviour {
 
     public GameObject inputField;
-    public GameObject networkManagerGO;
     public GameObject textMatchesName, textMatchesSize;
     public GameObject[] joins;
     public GameObject textNoRoomsCreated;
     public GameObject buttonCreateRoom;
 
     private NetworkManager networkManager;
-    private NetworkID[] networksIds = new NetworkID[4];
+    private long[] networksIds = new long[4];
 
     private void Start()
     {
-        networkManager = networkManagerGO.GetComponent<NetworkManager>();
+        networkManager = GameObject.Find("NetworkManager").GetComponent<NetworkManager>();
+
         inputField.GetComponent<InputField>().text = Player_control.playerLocalName;
 
         networkManager.StartMatchMaker();
@@ -45,77 +46,65 @@ public class MenuController : MonoBehaviour {
     public void NameIntroduced()
     {
          Player_control.playerLocalName = inputField.GetComponent<InputField>().text;
-         Debug.Log(Player_control.playerLocalName);
+         //Debug.Log(Player_control.playerLocalName);
     }
 
     public void CreateMatch()
     {
         NameIntroduced();
-        networkManager.matchMaker.CreateMatch(Player_control.playerLocalName, 4, true, "", "", "", 0, 0, OnMatchCreate);
-    }
-
-    public void OnMatchCreate(bool success, string extendedInfo, MatchInfo matchInfo)
-    {
-        if (!success) Debug.Log("Ha anat malament el create");
-        else
-        {
-            NetworkManager.singleton.StartHost(matchInfo);
-        }
+        networkManager.matchMaker.CreateMatch(Player_control.playerLocalName, 4, true, "", "", "", 0, 0, networkManager.OnMatchCreate);
     }
 
     public void JoinMatch(int room)
     {
         NameIntroduced();
-        networkManager.matchMaker.JoinMatch(networksIds[room], "", "", "", 0, 0, OnMatchJoined);
-    }
-
-    public void OnMatchJoined(bool success, string extendedInfo, MatchInfo matchInfo)
-    {
-        if (!success) Debug.Log("Ha anat malament el join");
-        else NetworkManager.singleton.StartClient(matchInfo);
+        networkManager.matchMaker.JoinMatch((NetworkID)networksIds[room], "", "", "", 0, 0, networkManager.OnMatchJoined);
     }
 
     IEnumerator WriteMatchTable()
     {
         for (;;)
         {
-            networkManager.matchMaker.ListMatches(0, 3, "", true, 0, 0, OnMatchList);
+            networkManager.matchMaker.ListMatches(0, 4, "", true, 0, 0, OnMatchList);
             yield return new WaitForSeconds(1);
         }
     }
 
     public void OnMatchList(bool success, string extendedInfo, List<MatchInfoSnapshot> matchList)
     {
-        if (!success) Debug.Log("Ha anat malament");
-        else
+        networkManager.OnMatchList(success, extendedInfo, matchList);
+        if (success)
         {
-            string names = "";
-            string capacity = "";
-
-            int count = 0;
-            if (matchList != null)
+            if (SceneManager.GetActiveScene().name.Equals("Menu"))
             {
-                foreach (MatchInfoSnapshot match in matchList)
+                string names = "";
+                string capacity = "";
+
+                int count = 0;
+                if (matchList != null)
                 {
-                    joins[count].SetActive(true);
-                    networksIds[count] = match.networkId;
-                    count++;
+                    foreach (MatchInfoSnapshot match in matchList)
+                    {
+                        joins[count].SetActive(true);
+                        networksIds[count] = (long)match.networkId;
+                        count++;
 
-                    names += match.name + "\n\n";
-                    capacity += match.currentSize + "/" + match.maxSize + "\n\n";
-                    
+                        names += match.name + "\n\n";
+                        capacity += match.currentSize + "/" + match.maxSize + "\n\n";
+
+                    }
                 }
-            }
 
-            for(int i=count; i<4; i++)
-            {
-                joins[i].SetActive(false);
-            }
-            if (count == 0) textNoRoomsCreated.SetActive(true);
-            else textNoRoomsCreated.SetActive(false);
+                for (int i = count; i < 4; i++)
+                {
+                    joins[i].SetActive(false);
+                }
+                if (count == 0) textNoRoomsCreated.SetActive(true);
+                else textNoRoomsCreated.SetActive(false);
 
-            textMatchesName.GetComponent<Text>().text = names;
-            textMatchesSize.GetComponent<Text>().text = capacity;
+                textMatchesName.GetComponent<Text>().text = names;
+                textMatchesSize.GetComponent<Text>().text = capacity;
+            }
         }
     }
 }

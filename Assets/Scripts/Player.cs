@@ -35,6 +35,8 @@ public class Player : NetworkBehaviour
 
                 game.EliminatePlayerCards(cardsChoosed, numberChoosed);
 
+                EliminateNotPossibleCubes();
+
                 numberChoosed = 0;
             }
         }
@@ -44,7 +46,7 @@ public class Player : NetworkBehaviour
     private void CmdAddPlayer(string playerLocalName, int numPlayer)
     {
         Player_control.addPlayerName(playerLocalName, numPlayer);
-        Debug.Log(Player_control.getplayersName()[numPlayer]);
+        //Debug.Log(Player_control.getplayersName()[numPlayer]);
     }
 
     [Command]
@@ -122,12 +124,13 @@ public class Player : NetworkBehaviour
                 game.GetPassedTextDown().gameObject.SetActive(true);
             }
         }
+        EliminateNotPossibleCubes();
     }
 
     [Command]
     public void CmdPassTurn(int numPlayer)
     {
-        Debug.Log("playersHavePassedTurn[" + numPlayer + "] = true");
+        //Debug.Log("playersHavePassedTurn[" + numPlayer + "] = true");
         game.PlayerPass(numPlayer);
     }
 
@@ -143,5 +146,13 @@ public class Player : NetworkBehaviour
     public void CmdPlayerPrepared(int numPlayer)
     {
         game.AddPlayerPrepared(numPlayer);
+    }
+
+    public void EliminateNotPossibleCubes()
+    {
+        foreach (GameObject cube in GameObject.FindGameObjectsWithTag("NotPossibleCube"))
+        {
+            Destroy(cube);
+        }
     }
 }
