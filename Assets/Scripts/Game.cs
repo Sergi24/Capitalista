@@ -187,6 +187,8 @@ public class Game : NetworkBehaviour
         Initialize();
         RpcInitialize();
 
+        RpcEliminateNotPossibleCube();
+
         for (int i = 0; i < 54; i++)
         {
             cardsSpawned[i] = Instantiate(cards[i], transform.position, cards[i].transform.rotation);
@@ -232,6 +234,15 @@ public class Game : NetworkBehaviour
         RpcVibrate();
 
         //GameObject.Find("NetworkManager").GetComponent<NetworkManager>().matchMaker;
+    }
+
+    [ClientRpc]
+    private void RpcEliminateNotPossibleCube()
+    {
+        foreach (GameObject player in GameObject.FindGameObjectsWithTag("Player"))
+        {
+            if (player.GetComponent<NetworkIdentity>().isLocalPlayer) player.GetComponent<Player>().EliminateNotPossibleCubes();
+        }
     }
 
     [ClientRpc]
@@ -355,7 +366,7 @@ public class Game : NetworkBehaviour
             for (int i = 0; i < numCardsForPlayer; i++)
             {
                 othersCards[(numPlayer + 1) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
-                othersCards[(numPlayer + 1) % numPlayers, i].transform.position = new Vector3(5.5f, (i * 0.35f) - ((numCardsForPlayer / 2) * 0.35f), 50 - i);
+                othersCards[(numPlayer + 1) % numPlayers, i].transform.position = new Vector3(7.7f, (i * 0.35f) - ((numCardsForPlayer / 2) * 0.35f), 50 - i);
                 othersCards[(numPlayer + 1) % numPlayers, i].transform.Rotate(new Vector3(0, 0, 90));
 
 
@@ -378,14 +389,14 @@ public class Game : NetworkBehaviour
             for (int i = 0; i < numCardsForPlayer; i++)
             {
                 othersCards[(numPlayer + 1) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
-                othersCards[(numPlayer + 1) % numPlayers, i].transform.position = new Vector3(5.5f, (i * 0.35f) - ((numCardsForPlayer / 2) * 0.35f), 50 - i);
+                othersCards[(numPlayer + 1) % numPlayers, i].transform.position = new Vector3(7.7f, (i * 0.35f) - ((numCardsForPlayer / 2) * 0.35f), 50 - i);
                 othersCards[(numPlayer + 1) % numPlayers, i].transform.Rotate(new Vector3(0, 0, 90));
 
                 othersCards[(numPlayer + 2) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
                 othersCards[(numPlayer + 2) % numPlayers, i].transform.position = new Vector3((i * 0.35f) - ((numCardsForPlayer / 2) * 0.35f), 4, 50 - i);
 
                 othersCards[(numPlayer + 3) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
-                othersCards[(numPlayer + 3) % numPlayers, i].transform.position = new Vector3(-5.5f, (i * 0.35f) - ((numCardsForPlayer / 2) * 0.35f), 50 - i);
+                othersCards[(numPlayer + 3) % numPlayers, i].transform.position = new Vector3(-7.7f, (i * 0.35f) - ((numCardsForPlayer / 2) * 0.35f), 50 - i);
                 othersCards[(numPlayer + 3) % numPlayers, i].transform.Rotate(new Vector3(0, 0, -90));
             }
         }
@@ -437,19 +448,22 @@ public class Game : NetworkBehaviour
         {
             for (int i = 0; i < indexLastCards; i++)
             {
-                lastCards[i].transform.Rotate(new Vector3(180, 0, 0));
+                if (int.Parse(lastCards[i].gameObject.tag) != 14)
+                {
+                    lastCards[i].transform.Rotate(new Vector3(180, 0, 0));
+                }
             }
+            RpcReverseLastCards();
         }
 
         indexLastCards = 0;
         for (int i = 0; i < cardsNumber; i++)
         {
-            cards[i].transform.position = new Vector3((i * 0.4f) - (cardsNumber / (2f / 0.4f)), i * (-0.1f), distanceLastCard);
-            cards[i].transform.Rotate(0, 0, i * 20);
+            RpcSetCardPosition(cards[i], i, cardsNumber, distanceLastCard);
             distanceLastCard -= 0.5f;
             RpcSetCardVisible(cards[i]);
 
-            lastCards[indexLastCards] = cards[i];
+            RpcAddLastCards(cards[i], indexLastCards);
             indexLastCards++;
         }
         int numberPlayersPassed = 0;
@@ -489,6 +503,33 @@ public class Game : NetworkBehaviour
         available = false;
 
         changeTurn(numberPlayersPassed);
+    }
+
+    [ClientRpc]
+    public void RpcSetCardPosition(GameObject card, int i, int cardsNumber, float distanceLastCard)
+    {
+        card.transform.position = new Vector3((i * 0.4f) - (cardsNumber / (2f / 0.4f)), i * (-0.1f) + 0.5f, distanceLastCard);
+        card.transform.Rotate(0, 0, i * 20);
+    }
+
+    [ClientRpc]
+    public void RpcAddLastCards(GameObject card, int indexLastCards)
+    {
+        lastCards[indexLastCards] = card;
+        this.indexLastCards = indexLastCards+1;
+    }
+
+    [ClientRpc]
+    public void RpcReverseLastCards()
+    {
+        for (int i = 0; i < indexLastCards; i++)
+        {
+            if (int.Parse(lastCards[i].gameObject.tag) != 14)
+            {
+                lastCards[i].transform.Rotate(new Vector3(180, 0, 0));
+            }
+        }
+        indexLastCards = 0;
     }
 
     [ClientRpc]
@@ -774,20 +815,12 @@ public class Game : NetworkBehaviour
     private IEnumerator ResetTable()
     {
         yield return new WaitForSeconds(2f);
-        int i;
-        for (i = 0; i < indexLastCards; i++)
-        {
-            if (int.Parse(lastCards[i].gameObject.tag) != 14)
-            {
-                lastCards[i].transform.Rotate(new Vector3(180, 0, 0));
-            }
-        }
+        RpcReverseLastCards();
 
-        for (i = 0; i < numPlayers; i++)
+        for (int i = 0; i < numPlayers; i++)
         {
             playersHavePassedTurn[i] = false;
         }
-        indexLastCards = 0;
         RpcDisablePassedText();
     }
 
@@ -995,6 +1028,6 @@ public class Game : NetworkBehaviour
 
     public void ExitGame()
     {
-        GameObject.Find("NetworkManager").GetComponent<NetworkManager>().StopHost();
+        GameObject.Find("NetworkManager").GetComponent<NetworkManagerController>().Stop();
     }
 }

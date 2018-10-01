@@ -3,30 +3,23 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Networking;
-using UnityEngine.Networking.Match;
-using UnityEngine.Networking.Types;
 using UnityEngine.SceneManagement;
+using UnityEngine.Networking.Match;
 
 public class MenuController : MonoBehaviour {
 
-    public GameObject inputField;
     public GameObject textMatchesName, textMatchesSize;
-    public GameObject[] joins;
     public GameObject textNoRoomsCreated;
-    public GameObject buttonCreateRoom;
 
-    private NetworkManager networkManager;
-    private long[] networksIds = new long[4];
+    public GameObject inputField;
+    public GameObject[] joins;
+    public GameObject buttonCreateRoom;
 
     private void Start()
     {
-        networkManager = GameObject.Find("NetworkManager").GetComponent<NetworkManager>();
-
         inputField.GetComponent<InputField>().text = Player_control.playerLocalName;
 
-        networkManager.StartMatchMaker();
-
-        StartCoroutine(WriteMatchTable());
+        StartCoroutine(ListMatches());
     }
 
     private void Update()
@@ -46,65 +39,56 @@ public class MenuController : MonoBehaviour {
     public void NameIntroduced()
     {
          Player_control.playerLocalName = inputField.GetComponent<InputField>().text;
-         //Debug.Log(Player_control.playerLocalName);
     }
 
     public void CreateMatch()
     {
-        NameIntroduced();
-        networkManager.matchMaker.CreateMatch(Player_control.playerLocalName, 4, true, "", "", "", 0, 0, networkManager.OnMatchCreate);
+        GameObject.Find("NetworkManager").GetComponent<NetworkManagerController>().CreateMatch();
     }
 
     public void JoinMatch(int room)
     {
-        NameIntroduced();
-        networkManager.matchMaker.JoinMatch((NetworkID)networksIds[room], "", "", "", 0, 0, networkManager.OnMatchJoined);
+        GameObject.Find("NetworkManager").GetComponent<NetworkManagerController>().JoinMatch(room);
     }
 
-    IEnumerator WriteMatchTable()
+    public IEnumerator ListMatches()
     {
-        for (;;)
+        for (; ; )
         {
-            networkManager.matchMaker.ListMatches(0, 4, "", true, 0, 0, OnMatchList);
+            GameObject.Find("NetworkManager").GetComponent<NetworkManagerController>().ListMatches();
             yield return new WaitForSeconds(1);
         }
     }
 
-    public void OnMatchList(bool success, string extendedInfo, List<MatchInfoSnapshot> matchList)
+    public void WriteRoomsTable(List<MatchInfoSnapshot> matchList)
     {
-        networkManager.OnMatchList(success, extendedInfo, matchList);
-        if (success)
+        if (SceneManager.GetActiveScene().name.Equals("Menu"))
         {
-            if (SceneManager.GetActiveScene().name.Equals("Menu"))
+            string names = "";
+            string capacity = "";
+
+            int count = 0;
+            if (matchList != null)
             {
-                string names = "";
-                string capacity = "";
-
-                int count = 0;
-                if (matchList != null)
+                foreach (MatchInfoSnapshot match in matchList)
                 {
-                    foreach (MatchInfoSnapshot match in matchList)
-                    {
-                        joins[count].SetActive(true);
-                        networksIds[count] = (long)match.networkId;
-                        count++;
+                    joins[count].SetActive(true);
+                    count++;
 
-                        names += match.name + "\n\n";
-                        capacity += match.currentSize + "/" + match.maxSize + "\n\n";
-
-                    }
+                    names += match.name + "\n\n";
+                    capacity += match.currentSize + "/" + match.maxSize + "\n\n";
                 }
-
-                for (int i = count; i < 4; i++)
-                {
-                    joins[i].SetActive(false);
-                }
-                if (count == 0) textNoRoomsCreated.SetActive(true);
-                else textNoRoomsCreated.SetActive(false);
-
-                textMatchesName.GetComponent<Text>().text = names;
-                textMatchesSize.GetComponent<Text>().text = capacity;
             }
+
+            for (int i = count; i < 4; i++)
+            {
+                joins[i].SetActive(false);
+            }
+            if (count == 0) textNoRoomsCreated.SetActive(true);
+            else textNoRoomsCreated.SetActive(false);
+
+            textMatchesName.GetComponent<Text>().text = names;
+            textMatchesSize.GetComponent<Text>().text = capacity;
         }
     }
 }
