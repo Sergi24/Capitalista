@@ -9,7 +9,7 @@ using UnityEngine.SceneManagement;
 
 public class NetworkManagerController : MonoBehaviour
 {
-    private long[] networksIds = new long[4];
+    private MatchInfoSnapshot[] networksIds = new MatchInfoSnapshot[4];
 
     private void Start()
     {
@@ -23,7 +23,7 @@ public class NetworkManagerController : MonoBehaviour
 
     public void JoinMatch(int room)
     {
-        gameObject.GetComponent<NetworkManager>().matchMaker.JoinMatch((NetworkID)networksIds[room], "", "", "", 0, 0, gameObject.GetComponent<NetworkManager>().OnMatchJoined);
+        gameObject.GetComponent<NetworkManager>().matchMaker.JoinMatch(networksIds[room].networkId, "", "", "", 0, 0, gameObject.GetComponent<NetworkManager>().OnMatchJoined);
     }
 
     public void ListMatches()
@@ -46,7 +46,7 @@ public class NetworkManagerController : MonoBehaviour
                 int count = 0;
                 foreach (MatchInfoSnapshot match in matchList)
                 {
-                    networksIds[count] = (long)match.networkId;
+                    networksIds[count] = match;
                     count++;
                 }
                 GameObject.Find("MenuController").GetComponent<MenuController>().WriteRoomsTable(matchList);

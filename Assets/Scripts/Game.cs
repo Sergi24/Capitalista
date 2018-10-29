@@ -37,17 +37,24 @@ public class Game : NetworkBehaviour
     private int position;
 
     public Text textNumYouEnded, textYouEnded, passedTextUp, passedTextDown, passedTextRight, passedTextLeft;
+    public GameObject passedTextUpImage, passedTextDownImage, passedTextRightImage, passedTextLeftImage;
     public Text playerDownName, playerRightName, playerUpName, playerLeftName, textNumPlayersNumber, textSended, textTimeNumber;
+    public GameObject playerDownNameImage, playerRightNameImage, playerUpNameImage, playerLeftNameImage;
+    public GameObject emojiInstantiatorDown, emojiInstantiatorRight, emojiInstantiatorUp, emojiInstantiatorLeft;
+    public GameObject[] emojis;
     public GameObject puntuations, textNumPlayers;
     public Text[] textNamesPuntuationPlayers, puntuationPlayers, textNamesPuntuationPlayersOptions, puntuationPlayersOptions;
     private Text[] passedTextPlayers, textPlayersName;
+    private GameObject[] passedTextPlayersImages;
+    private Vector3[] emojisInstantiators;
+    public GameObject panelEmojis;
 
     public GameObject buttonToBegin;
-    public GameObject textForWaiting;
+    public GameObject textForWaiting, onePlayerDisconnected;
 
     public Color red, orange, green, yellow;
 
-    public GameObject buttonNextGame, buttonPassTurn, buttonPlayCards;
+    public GameObject buttonNextGame, buttonPassTurn, buttonPlayCards, buttonEmojis;
 
     public AudioClip cardSound, passSound;
 
@@ -75,37 +82,58 @@ public class Game : NetworkBehaviour
 
         if (isServer) buttonToBegin.SetActive(true);
         else textForWaiting.SetActive(true);
-        
+
+        textNumPlayers.gameObject.SetActive(true);
+        buttonPassTurn.GetComponent<Button>().interactable = false;
+        buttonPlayCards.GetComponent<Button>().interactable = false;
+
+        StartCoroutine(FillTextNumPlayers());
     }
 
-    // Update is called once per frame
-    void Update()
+    IEnumerator SameNumberOfPlayers()
     {
-        if (!startedGame)
+        for (;;)
         {
-            textNumPlayers.gameObject.SetActive(true);
-            textNumPlayersNumber.GetComponent<Text>().text = ""+GameObject.FindGameObjectsWithTag("Player").Length;
-            buttonPassTurn.GetComponent<Button>().interactable = false;
-            buttonPlayCards.GetComponent<Button>().interactable = false;
+            if (numPlayers != GameObject.FindGameObjectsWithTag("Player").Length)
+            {
+                RpcShowTextNumPlayersDifferent();
+            }
+            yield return new WaitForSeconds(1f);
+        }
+    }
+
+    [ClientRpc]
+    public void RpcShowTextNumPlayersDifferent()
+    {
+        onePlayerDisconnected.SetActive(true);
+        Invoke("ExitGame", 3f);
+    }
+
+    IEnumerator FillTextNumPlayers()
+    {
+        for (; ; )
+        {
+            textNumPlayersNumber.GetComponent<Text>().text = "" + GameObject.FindGameObjectsWithTag("Player").Length;
+            
             if (isServer)
             {
                 if (GameObject.FindGameObjectsWithTag("Player").Length > 1) buttonToBegin.GetComponent<Button>().interactable = true;
                 else buttonToBegin.GetComponent<Button>().interactable = false;
             }
+            yield return new WaitForSeconds(1f);
         }
     }
 
     public void ButtonToBeginPressed()
     {
-        if (isServer)
+        if (GameObject.FindGameObjectsWithTag("Player").Length > 1 && !startedGame)
         {
-            if (GameObject.FindGameObjectsWithTag("Player").Length > 1 && !startedGame)
-            {
-                //Debug.Log("BUTTON TO BEGIN PRESSED");
-                BeginGame();
-                startedGame = true;
-                RpcDisableTextNumPlayersAndWaitinText();
-            }
+            //Debug.Log("BUTTON TO BEGIN PRESSED");
+            BeginGame();
+            startedGame = true;
+            StartCoroutine(SameNumberOfPlayers());
+                
+            RpcDisableTextNumPlayersAndWaitinText();
         }
     }
 
@@ -116,7 +144,9 @@ public class Game : NetworkBehaviour
         indexLastCards = 0;
         playersHavePassedTurn = new bool[4];
         passedTextPlayers = new Text[4];
+        passedTextPlayersImages = new GameObject[4];
         textPlayersName = new Text[4];
+        emojisInstantiators = new Vector3[4];
         nameOfPlayers = new String[4];
         playersHaveFinished = new bool[4];
         available = true;
@@ -148,8 +178,10 @@ public class Game : NetworkBehaviour
         indexLastCards = 0;
         playersHavePassedTurn = new bool[4];
         passedTextPlayers = new Text[4];
+        passedTextPlayersImages = new GameObject[4];
         textPlayersName = new Text[4];
         nameOfPlayers = new String[4];
+        emojisInstantiators = new Vector3[4];
         playersHaveFinished = new bool[4];
         available = true;
 
@@ -173,6 +205,7 @@ public class Game : NetworkBehaviour
     [ClientRpc]
     private void RpcDisableTextNumPlayersAndWaitinText()
     {
+        StopCoroutine(FillTextNumPlayers());
         startedGame = true;
         buttonToBegin.SetActive(false);
         textNumPlayers.SetActive(false);
@@ -187,6 +220,7 @@ public class Game : NetworkBehaviour
         Initialize();
         RpcInitialize();
 
+        RpcSetEmojisButtonEnabled();
         RpcEliminateNotPossibleCube();
 
         for (int i = 0; i < 54; i++)
@@ -228,12 +262,8 @@ public class Game : NetworkBehaviour
         RpcRefreshButtonsInteraction(playerTurn);
 
         timeNumber = remainingTime;
-        RpcReduceTime(timeNumber);
+        RpcSetTime(timeNumber);
         StartCoroutine(ReduceTime(throwNumber));
-
-        RpcVibrate();
-
-        //GameObject.Find("NetworkManager").GetComponent<NetworkManager>().matchMaker;
     }
 
     [ClientRpc]
@@ -243,6 +273,12 @@ public class Game : NetworkBehaviour
         {
             if (player.GetComponent<NetworkIdentity>().isLocalPlayer) player.GetComponent<Player>().EliminateNotPossibleCubes();
         }
+    }
+
+    [ClientRpc]
+    private void RpcSetEmojisButtonEnabled()
+    {
+        buttonEmojis.GetComponent<Button>().interactable = true;
     }
 
     [ClientRpc]
@@ -343,13 +379,19 @@ public class Game : NetworkBehaviour
     private void positionOthersCards()
     {
         passedTextPlayers[numPlayer] = passedTextDown;
+        passedTextPlayersImages[numPlayer] = passedTextDownImage;
         playerDownName.text = nameOfPlayers[numPlayer];
+        playerDownNameImage.SetActive(true);
         textPlayersName[numPlayer] = playerDownName;
+        emojisInstantiators[numPlayer] = emojiInstantiatorDown.transform.position;
         if (numPlayers == 2)
         {
             passedTextPlayers[(numPlayer + 1) % numPlayers] = passedTextUp;
+            passedTextPlayersImages[(numPlayer + 1) % numPlayers] = passedTextUpImage;
             playerUpName.text = nameOfPlayers[(numPlayer + 1) % numPlayers];
             textPlayersName[(numPlayer + 1) % numPlayers] = playerUpName;
+            emojisInstantiators[(numPlayer + 1) % numPlayers] = emojiInstantiatorUp.transform.position;
+            playerUpNameImage.SetActive(true);
             for (int i = 0; i < numCardsForPlayer; i++)
             {
                 othersCards[(numPlayer + 1) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
@@ -358,11 +400,17 @@ public class Game : NetworkBehaviour
         } else if (numPlayers == 3)
         {
             passedTextPlayers[(numPlayer + 1) % numPlayers] = passedTextRight;
+            passedTextPlayersImages[(numPlayer + 1) % numPlayers] = passedTextRightImage;
             playerRightName.text = nameOfPlayers[(numPlayer + 1) % numPlayers];
             textPlayersName[(numPlayer + 1) % numPlayers] = playerRightName;
+            emojisInstantiators[(numPlayer + 1) % numPlayers] = emojiInstantiatorRight.transform.position;
             passedTextPlayers[(numPlayer + 2) % numPlayers] = passedTextUp;
+            passedTextPlayersImages[(numPlayer + 2) % numPlayers] = passedTextUpImage;
             playerUpName.text = nameOfPlayers[(numPlayer + 2) % numPlayers];
             textPlayersName[(numPlayer + 2) % numPlayers] = playerUpName;
+            emojisInstantiators[(numPlayer + 2) % numPlayers] = emojiInstantiatorUp.transform.position;
+            playerRightNameImage.SetActive(true);
+            playerUpNameImage.SetActive(true);
             for (int i = 0; i < numCardsForPlayer; i++)
             {
                 othersCards[(numPlayer + 1) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
@@ -377,15 +425,23 @@ public class Game : NetworkBehaviour
         else
         {
             passedTextPlayers[(numPlayer + 1) % numPlayers] = passedTextRight;
+            passedTextPlayersImages[(numPlayer + 1) % numPlayers] = passedTextRightImage;
             playerRightName.text = nameOfPlayers[(numPlayer + 1) % numPlayers];
             textPlayersName[(numPlayer + 1) % numPlayers] = playerRightName;
+            emojisInstantiators[(numPlayer + 1) % numPlayers] = emojiInstantiatorRight.transform.position;
             passedTextPlayers[(numPlayer + 2) % numPlayers] = passedTextUp;
+            passedTextPlayersImages[(numPlayer + 2) % numPlayers] = passedTextUpImage;
             playerUpName.text = nameOfPlayers[(numPlayer + 2) % numPlayers];
             textPlayersName[(numPlayer + 2) % numPlayers] = playerUpName;
+            emojisInstantiators[(numPlayer + 2) % numPlayers] = emojiInstantiatorUp.transform.position;
             passedTextPlayers[(numPlayer + 3) % numPlayers] = passedTextLeft;
+            passedTextPlayersImages[(numPlayer + 3) % numPlayers] = passedTextLeftImage;
             playerLeftName.text = nameOfPlayers[(numPlayer + 3) % numPlayers];
             textPlayersName[(numPlayer + 3) % numPlayers] = playerLeftName;
-
+            emojisInstantiators[(numPlayer + 3) % numPlayers] = emojiInstantiatorLeft.transform.position;
+            playerRightNameImage.SetActive(true);
+            playerUpNameImage.SetActive(true);
+            playerLeftNameImage.SetActive(true);
             for (int i = 0; i < numCardsForPlayer; i++)
             {
                 othersCards[(numPlayer + 1) % numPlayers, i] = Instantiate(reversCard, transform.position, reversCard.transform.rotation);
@@ -406,6 +462,9 @@ public class Game : NetworkBehaviour
     {
         if (lastGame[0] == -1) return true;
         else if (cardNumber == 14) return true;
+
+        if (!IsCardPosibleByNumber(cardNumber, lastGame[1])) return false;
+
         if (lastGame[0] == 11)
         {
             if (cardNumber >= 10) return true;
@@ -446,14 +505,7 @@ public class Game : NetworkBehaviour
 
         if (int.Parse(cards[0].tag) == 14)
         {
-            for (int i = 0; i < indexLastCards; i++)
-            {
-                if (int.Parse(lastCards[i].gameObject.tag) != 14)
-                {
-                    lastCards[i].transform.Rotate(new Vector3(180, 0, 0));
-                }
-            }
-            RpcReverseLastCards();
+            RpcReverseLastCards(indexLastCards);
         }
 
         indexLastCards = 0;
@@ -478,6 +530,8 @@ public class Game : NetworkBehaviour
         lastGame.Insert(1, cardsNumber);
         lastPlayerGame = playerTurn;
 
+        RpcEliminateOtherCards(cardsNumber, playerTurn);
+
         //Debug.Log(numPlayerCards);
         if (numPlayerCards <= 0)
         {
@@ -492,23 +546,30 @@ public class Game : NetworkBehaviour
             }
             if (count < 2)
             {
+                StopCoroutine(ReduceTime(0));
                 RpcShowPuntuation(Player_control.playersPuntuation);
             }
-            position++;
+            else
+            {
+                position++;
 
+                available = false;
+
+                changeTurn(numberPlayersPassed);
+            }
         }
+        else
+        {
+            available = false;
 
-        RpcEliminateOtherCards(cardsNumber, playerTurn);
-
-        available = false;
-
-        changeTurn(numberPlayersPassed);
+            changeTurn(numberPlayersPassed);
+        }
     }
 
     [ClientRpc]
     public void RpcSetCardPosition(GameObject card, int i, int cardsNumber, float distanceLastCard)
     {
-        card.transform.position = new Vector3((i * 0.4f) - (cardsNumber / (2f / 0.4f)), i * (-0.1f) + 0.5f, distanceLastCard);
+        card.transform.position = new Vector3((i * 0.4f) - (cardsNumber / (2f / 0.4f)), i * (-0.1f) + 0.69f, distanceLastCard);
         card.transform.Rotate(0, 0, i * 20);
     }
 
@@ -520,7 +581,7 @@ public class Game : NetworkBehaviour
     }
 
     [ClientRpc]
-    public void RpcReverseLastCards()
+    public void RpcReverseLastCards(int indexLastCards)
     {
         for (int i = 0; i < indexLastCards; i++)
         {
@@ -529,7 +590,7 @@ public class Game : NetworkBehaviour
                 lastCards[i].transform.Rotate(new Vector3(180, 0, 0));
             }
         }
-        indexLastCards = 0;
+        this.indexLastCards = 0;
     }
 
     [ClientRpc]
@@ -742,11 +803,45 @@ public class Game : NetworkBehaviour
     }
 
     [ClientRpc]
-    private void RpcNotPossibleCards(int playerTurn)
+    private void RpcSkipPlayer(int numPlayer)
+    {
+        passedTextPlayers[numPlayer].text ="SKIPPED";
+        passedTextPlayers[numPlayer].color = orange;
+        passedTextPlayersImages[numPlayer].SetActive(true);
+
+        IEnumerator disableSkippedPlayer = DisableSkippedPlayer(2f, numPlayer);
+        StartCoroutine(disableSkippedPlayer);
+    }
+
+    private IEnumerator DisableSkippedPlayer(float time, int numPlayer)
+    {
+        yield return new WaitForSeconds(time);
+        passedTextPlayers[numPlayer].text = "PASSED";
+        passedTextPlayers[numPlayer].color = red;
+        passedTextPlayersImages[numPlayer].SetActive(false);
+    }
+
+    private IEnumerator ChangePlayerTurn(float time)
+    {
+        yield return new WaitForSeconds(time);
+        RpcChangePlayerTurn(playerTurn, playersHaveFinished);
+        RpcNotPossibleCards(playerTurn, lastGame[1]);
+        available = true;
+
+        timeNumber = remainingTime;
+        textTimeNumber.GetComponent<Text>().text = remainingTime.ToString();
+        RpcSetTime(remainingTime);
+        StartCoroutine(ReduceTime(throwNumber));
+
+        RpcRefreshButtonsInteraction(playerTurn);
+    }
+
+    [ClientRpc]
+    private void RpcNotPossibleCards(int playerTurn, int cardsNumber)
     {
         if (playerTurn == numPlayer)
         {
-            foreach(GameObject card in playerCards)
+            foreach (GameObject card in playerCards)
             {
                 if (!IsCardPosible(int.Parse(card.tag)))
                 {
@@ -756,45 +851,18 @@ public class Game : NetworkBehaviour
         }
     }
 
-    [ClientRpc]
-    private void RpcSkipPlayer(int numPlayer)
+    public bool IsCardPosibleByNumber(int cardNumber, int cardsNumber)
     {
-        passedTextPlayers[numPlayer].text ="SKIPPED";
-        passedTextPlayers[numPlayer].color = orange;
-        passedTextPlayers[numPlayer].gameObject.SetActive(true);
-
-        IEnumerator disableSkippedPlayer = DisableSkippedPlayer(2f, numPlayer);
-        StartCoroutine(disableSkippedPlayer);
+        int count = 0;
+        foreach (GameObject card in playerCards)
+        {
+            if (int.Parse(card.tag) == cardNumber) count++;
+            else if ((cardNumber == 10 || cardNumber == 11) && (int.Parse(card.tag) == 10 || int.Parse(card.tag) == 11)) count++;
+        }
+        if (count >= cardsNumber) return true;
+        else return false;
     }
 
-    [ClientRpc]
-    private void RpcVibrate()
-    {
-       Handheld.Vibrate();
-    }
-
-    private IEnumerator DisableSkippedPlayer(float time, int numPlayer)
-    {
-        yield return new WaitForSeconds(time);
-        passedTextPlayers[numPlayer].text = "PASSED";
-        passedTextPlayers[numPlayer].color = red;
-        passedTextPlayers[numPlayer].gameObject.SetActive(false);
-    }
-
-    private IEnumerator ChangePlayerTurn(float time)
-    {
-        yield return new WaitForSeconds(time);
-        RpcChangePlayerTurn(playerTurn, playersHaveFinished);
-        RpcNotPossibleCards(playerTurn);
-        available = true;
-
-        timeNumber = remainingTime;
-        textTimeNumber.GetComponent<Text>().text = remainingTime.ToString();
-        RpcReduceTime(remainingTime);
-        StartCoroutine(ReduceTime(throwNumber));
-
-        RpcRefreshButtonsInteraction(playerTurn);
-    }
 
     [ClientRpc]
     private void RpcRefreshButtonsInteraction(int playerTurn)
@@ -803,6 +871,7 @@ public class Game : NetworkBehaviour
         {
             buttonPassTurn.GetComponent<Button>().interactable = true;
             buttonPlayCards.GetComponent<Button>().interactable = true;
+            Handheld.Vibrate();
         }
         else
         {
@@ -815,7 +884,7 @@ public class Game : NetworkBehaviour
     private IEnumerator ResetTable()
     {
         yield return new WaitForSeconds(2f);
-        RpcReverseLastCards();
+        RpcReverseLastCards(indexLastCards);
 
         for (int i = 0; i < numPlayers; i++)
         {
@@ -831,7 +900,7 @@ public class Game : NetworkBehaviour
         {
             if (passedTextPlayers[i] != null)
             {
-                passedTextPlayers[i].gameObject.SetActive(false);
+                passedTextPlayersImages[i].SetActive(false);
             }
         }
     }
@@ -883,7 +952,7 @@ public class Game : NetworkBehaviour
     private void RpcPlayerHasPassed(int numPlayer)
     {
         //Debug.Log("AQUIII" + numPlayer);
-        passedTextPlayers[numPlayer].gameObject.SetActive(true);
+        passedTextPlayersImages[numPlayer].SetActive(true);
     }
 
     public bool lessNumberOfCards(int number)
@@ -944,10 +1013,10 @@ public class Game : NetworkBehaviour
                 }
             }
             numPlayerCards--;
-            for (int i = 0; i < numPlayerCards; i++)
+            /*for (int i = 0; i < numPlayerCards; i++)
             {
-                //Debug.Log(playerCards[i].name);
-            }
+                Debug.Log(playerCards[i].name);
+            }*/
         }
         //Debug.Log("Length player cards: "+playerCards.Length+" "+ numPlayerCards);
     }
@@ -990,7 +1059,7 @@ public class Game : NetworkBehaviour
             if (timeNumber > 0)
             {
                 timeNumber -= 1;
-                RpcReduceTime(timeNumber);
+                RpcSetTime(timeNumber);
                 if (timeNumber == 6 || timeNumber == 4 || timeNumber == 2 || timeNumber == 1) RpcAlertSound();
             }
             else if (timeNumber == 0)
@@ -1002,7 +1071,7 @@ public class Game : NetworkBehaviour
     }
 
     [ClientRpc]
-    private void RpcReduceTime(int timeNumber)
+    private void RpcSetTime(int timeNumber)
     {
         textTimeNumber.GetComponent<Text>().text = timeNumber.ToString();
 
@@ -1018,6 +1087,30 @@ public class Game : NetworkBehaviour
         {
             player.GetComponent<Player>().PassTurn(numPlayer, playerTurn);
         }
+    }
+
+    public void ButtonEmojiPressed()
+    {
+        if (!panelEmojis.activeSelf) panelEmojis.SetActive(true);
+        else panelEmojis.SetActive(false);
+    }
+
+    public void EmojiSelected(int numEmoji)
+    {
+        if (numPlayers > 1)
+        {
+            panelEmojis.SetActive(false);
+            foreach (GameObject player in GameObject.FindGameObjectsWithTag("Player"))
+            {
+                player.GetComponent<Player>().EmojiSelected(numPlayer, numEmoji);
+            }
+        }
+    }
+
+    [ClientRpc]
+    public void RpcThrowEmoji(int numPlayer, int numEmoji)
+    {
+        Instantiate(emojis[numEmoji], emojisInstantiators[numPlayer], Quaternion.identity);
     }
 
     public void ShowOptions()

@@ -28,7 +28,6 @@ public class Card : NetworkBehaviour
             {
                 player.GetComponent<Player>().setCardChoosed(gameObject);
             }
-
         }
         else if (selected)
         {

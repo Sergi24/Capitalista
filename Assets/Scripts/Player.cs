@@ -15,6 +15,9 @@ public class Player : NetworkBehaviour
         cardsChoosed = new GameObject[8];
         numberChoosed = 0;
         game = GameObject.Find("Game").GetComponent<Game>();
+
+        CmdGetStartedGame(GameObject.FindGameObjectsWithTag("Player").Length-1);
+
         if (!isLocalPlayer)
         {
             gameObject.GetComponentInChildren<AudioListener>().enabled = false;
@@ -23,6 +26,18 @@ public class Player : NetworkBehaviour
 
         if (isLocalPlayer) CmdAddPlayer(Player_control.playerLocalName, GameObject.FindGameObjectsWithTag("Player").Length-1);
 
+    }
+
+    [Command]
+    private void CmdGetStartedGame(int numPlayer)
+    {
+        if (game.GetStartedGame()) RpcEliminatePlayer(numPlayer);
+    }
+
+    [ClientRpc]
+    public void RpcEliminatePlayer(int numPlayer)
+    {
+        if (numPlayer == GameObject.FindGameObjectsWithTag("Player").Length - 1) game.ExitGame();
     }
 
     public void PlaySelectedCards()
@@ -154,5 +169,19 @@ public class Player : NetworkBehaviour
         {
             Destroy(cube);
         }
+    }
+
+    public void EmojiSelected(int numPlayer, int numEmoji)
+    {
+        if (isLocalPlayer)
+        {
+            CmdThrowEmoji(numPlayer, numEmoji);
+        }
+    }
+
+    [Command]
+    public void CmdThrowEmoji(int numPlayer, int numEmoji)
+    {
+        game.RpcThrowEmoji(numPlayer, numEmoji);
     }
 }

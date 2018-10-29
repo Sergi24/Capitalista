@@ -15,9 +15,13 @@ public class MenuController : MonoBehaviour {
     public GameObject[] joins;
     public GameObject buttonCreateRoom;
 
+    private bool roomJoined;
+
     private void Start()
     {
         inputField.GetComponent<InputField>().text = Player_control.playerLocalName;
+
+        roomJoined = false;
 
         StartCoroutine(ListMatches());
     }
@@ -48,7 +52,10 @@ public class MenuController : MonoBehaviour {
 
     public void JoinMatch(int room)
     {
-        GameObject.Find("NetworkManager").GetComponent<NetworkManagerController>().JoinMatch(room);
+        if (!roomJoined)
+        {
+            GameObject.Find("NetworkManager").GetComponent<NetworkManagerController>().JoinMatch(room);
+        }
     }
 
     public IEnumerator ListMatches()
